@@ -16,9 +16,7 @@ sys.path.append(os.getcwd()) # Asegurar que encuentre el modulo 'app'
 
 from app.core.config import settings
 from app.models.base import Base
-# IMPORTANTE: Si creas mas modelos (User, Product), asegurate 
-# de que esten importados en algun lado o en models/__init__.py 
-# para que Base.metadata los vea.
+import app.models # Importar todos los modelos para que Base.metadata los reconozca
 
 # ---------------------------------------------------------
 
@@ -32,7 +30,9 @@ if config.config_file_name is not None:
 # ---------------------------------------------------------
 # [Override] Usar la URL del .env en lugar del alembic.ini
 # ---------------------------------------------------------
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Escapamos el % para que ConfigParser no falle (%%)
+escaped_url = settings.DATABASE_URL.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", escaped_url)
 
 # ---------------------------------------------------------
 # [Step B]: Configurar los metadatos para autogenerate

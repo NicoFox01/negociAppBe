@@ -44,45 +44,45 @@ async def get_my_notifications(
         )
 
 @router.post("/{username_request}", response_model=NotificationCreate)
-async def create_reset_request(db: AsyncSession, username_request: str):
-        result = await db.execute(select(Users).where(Users.username == username_request))
-        user_db = result.scalars().first()
-        if not user_db:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Usuario no encontrado"
-            )
-
-        query_exist = await db.execute(
-            select(Notification).where(
-                Notification.user_id == user_db.id,
-                Notification.status == NotificationStatus.PENDING,
-                Notification.type == NotificationType.RESET_PASSWORD_REQUEST
-            )
-        )
-        if query_exist.scalars().first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe una solicitud de recuperación pendiente para este usuario."
-            )
-
-        new_notification = Notification(
-            user_id=user_db.id,
-            tenant_id=user_db.tenant_id,
-            type=NotificationType.RESET_PASSWORD_REQUEST,
-            status=NotificationStatus.PENDING
+async def create_reset_request(username_request: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Users).where(Users.username == username_request))
+    user_db = result.scalars().first()
+    if not user_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Usuario no encontrado"
         )
 
-        db.add(new_notification)
-        await db.commit()
-        await db.refresh(new_notification)
-        return new_notification
+    query_exist = await db.execute(
+        select(Notification).where(
+            Notification.user_id == user_db.id,
+            Notification.status == NotificationStatus.PENDING,
+            Notification.type == NotificationType.RESET_PASSWORD_REQUEST
+        )
+    )
+    if query_exist.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe una solicitud de recuperación pendiente para este usuario."
+        )
+
+    new_notification = Notification(
+        user_id=user_db.id,
+        tenant_id=user_db.tenant_id,
+        type=NotificationType.RESET_PASSWORD_REQUEST,
+        status=NotificationStatus.PENDING
+    )
+
+    db.add(new_notification)
+    await db.commit()
+    await db.refresh(new_notification)
+    return new_notification
 
 @router.patch("/{notification_id}", response_model=NotificationUpdate)
 async def resolve_notification_request(
     notification_id: UUID,
     new_Status: NotificationStatus,
-    current_user: Annotated[Users, Depends(get_current_user)],
+    current_user: Annotated["Users", Depends(get_current_user)],
     db: AsyncSession = Depends(get_db)
 ):
     notification_to_update = await db.execute(select(Notification).where(Notification.id == notification_id))
