@@ -1,3 +1,5 @@
+from uuid import UUID
+from app.api.deps import get_current_user, get_db
 from app.models import PlanType
 from datetime import timedelta
 from typing import Any
@@ -5,6 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, TYPE_CHECKING
+
+from app.schemas.user import UserCreate, UserSchema, UserUpdate
+from app.services import user_services
 
 if TYPE_CHECKING:
     from app.models.user import Users
@@ -36,7 +41,7 @@ async def return_all_users(
         )
 
 #Devueve un usuario por id
-@router.get("/{user_id}", resppone_model=UserSchema)
+@router.get("/{user_id}", response_model=UserSchema)
 async def return_user_by_id(
     user_id: UUID,
     current_user: Annotated["Users", Depends(get_current_user)],

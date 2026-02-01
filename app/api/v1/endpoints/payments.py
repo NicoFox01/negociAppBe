@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from app.api.deps import get_current_user, get_db
 from app.models.enums import Roles, PaymentStatus, PaymentType
 from app.schemas.payments import PaymentCreate, PaymentSchema
-from app.services import payments_services, storage_service
+from app.services import payments_services, storage_services
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app.models.enums import Roles
@@ -26,7 +26,7 @@ async def new_payment(
     if current_user.role != Roles.COMPANY:
         raise HTTPException(status_code=403, detail="Solo los responsables de la empresa pueden crear pagos")
     tenant_id = current_user.tenant_id
-    url_payment = storage_service.upload_payment_proof(file, tenant_id)
+    url_payment = storage_services.upload_payment_proof(file, tenant_id)
     payment_data = PaymentCreate(
         amount=amount,
         type=type,
@@ -68,7 +68,7 @@ async def verify_payment(
 @router.patch("/cancelar/{payment_id}", response_model=PaymentSchema)
 async def cancel_payment(
     payment_id: UUID,
-    current_user: Annotated[Users, Depends(get_current_user)],
+    current_user: Annotated["Users", Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     if current_user.role != Roles.COMPANY:
