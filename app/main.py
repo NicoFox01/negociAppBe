@@ -13,7 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En producción, cambia esto por la URL real de tu frontend
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "https://negociapp-fe-git-main-nicofox01s-projects.vercel.app",
+        "https://negociapp-fe-nicofox01s-projects.vercel.app",
+    ], # En producción, cambia esto por la URL real de tu frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
