@@ -9,13 +9,16 @@ from fastapi import HTTPException
 from typing import Optional
 
 async def create_reset_request(
-    db:AsyncSession,
+    db: AsyncSession,
     username: str,
 ):
     try:
-        user_exist = await user_services.get_by_username(username)
+        user_exist = await user_services.get_by_username(db, username)
         if not user_exist:
-            raise HTTPException(status_code=404)
+            # We return None or raise 404. For security, maybe just return None?
+            # But the caller might want to know.
+            return None 
+
         existing = await db.execute(
             select(Notification).where(
                 Notification.user_id == user_exist.id,
@@ -24,17 +27,19 @@ async def create_reset_request(
             )
         )
         if existing.scalars().first():
-            raise HTTPException(status_code=400, detail="Solicitud ya pendiente")
-        notification_data = NotificationCreate(
+            # Already exists, just return it or ignore
+            return existing.scalars().first()
+
+        new_notification = Notification(
             user_id=user_exist.id,
             tenant_id=user_exist.tenant_id,
             type=NotificationType.RESET_PASSWORD_REQUEST,
             status=NotificationStatus.PENDING
         )
-        db.add(notification_data)
-        db.commit()
-        db.refresh(notification_data)
-        return notification_data
+        db.add(new_notification)
+        await db.commit()
+        await db.refresh(new_notification)
+        return new_notification
     except Exception as e:
         await db.rollback()
         raise e
@@ -52,10 +57,15 @@ async def get_notifications(
         if status:
             query = query.where(Notification.status == status)
         if creator_role:
-            query = query.where(Notification.user.has(role=creator_role))
+             # Use explicit join for reliability with AsyncSession
+             from app.models.user import Users
+             query = query.join(Notification.user).where(Users.role == creator_role)
+             
         
         notifications = await db.execute(query)
-        return notifications.scalars().all()
+        results = notifications.scalars().all()
+
+        return results
     except Exception as e:
         await db.rollback()
         raise e
@@ -66,15 +76,17 @@ async def resolve_notification(
     status: NotificationStatus
 ):
     try:
-        change_password_request = await db.execute(select(Notification).where(Notification.id == id))
+        result = await db.execute(select(Notification).where(Notification.id == id))
+        change_password_request = result.scalar_one_or_none()
+
         if not change_password_request:
             raise HTTPException (status_code=404, detail="Solicitud inexistente")
         if change_password_request.status != NotificationStatus.PENDING:
             raise HTTPException (status_code=400, detail="Solo se pueden cambiar de estado las solicitudes pendientes")
         change_password_request.status = status
         db.add(change_password_request)
-        db.commit()
-        db.refresh(change_password_request)
+        await db.commit()
+        await db.refresh(change_password_request)
         return change_password_request
     except Exception as e:
         await db.rollback()

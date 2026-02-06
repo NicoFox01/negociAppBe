@@ -26,12 +26,25 @@ async def return_all_tenants(
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.ADMIN:
-        return tenant_services.get_all_tenants(db)
+        return await tenant_services.get_all_tenants(db)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
     )
 
+#Obtener tenant por ID
+@router.get("/{tenant_id}", response_model=TenantSchema)
+async def get_tenant_details_by_id(
+    current_user: Annotated["Users",Depends(get_current_user)],
+    tenant_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.role == Roles.ADMIN:
+        return await tenant_services.get_tenant(db, tenant_id)
+    raise HTTPException(
+        status_code=403,
+        detail="No tienes permiso para acceder a esta ruta"
+    )
 # Obtener detalles de mi tenant - para COMPANY
 @router.get("/mi-empresa", response_model=TenantSchema)
 async def return_my_tenant(
@@ -39,7 +52,7 @@ async def return_my_tenant(
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.COMPANY:
-        return tenant_services.get_tenant_by_id(db, current_user.tenant_id)
+        return await tenant_services.get_tenant(db, current_user.tenant_id)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -59,7 +72,7 @@ async def new_tenant(
             status_code=403,
             detail="No tienes permiso para acceder a esta ruta"
         )
-    return tenant_services.create_tenant_with_admin(db, tenant_data, company_role_data)
+    return await tenant_services.create_tenant_with_admin(db, tenant_data, company_role_data)
 
 # Actualizar tenant - solo Admin
 @router.put("/{tenant_id}", response_model=TenantSchema)
@@ -75,13 +88,13 @@ async def modify_tenant(
             detail="No tienes permiso para acceder a esta ruta"
         )
     ## si la tenant_id no existe
-    tenant_to_update = tenant_services.get_tenant_by_id(db, tenant_id)
+    tenant_to_update = await tenant_services.get_tenant(db, tenant_id)
     if tenant_to_update is None:
         raise HTTPException(
             status_code=404,
             detail="Tenant no encontrado"
         )
-    return tenant_services.update_tenant(db, tenant_id, tenant_data)
+    return await tenant_services.update_tenant(db, tenant_id, tenant_data)
 
 # Eliminar tenant - solo Admin
 @router.delete("/{tenant_id}", response_model=None)
@@ -95,7 +108,7 @@ async def remove_tenant(
             status_code=403,
             detail="No tienes permiso para acceder a esta ruta"
         )
-    tenant_services.delete_tenant(db, tenant_id)
+    await tenant_services.delete_tenant(db, tenant_id)
     return None
 # Activar tenant - solo Admin
 @router.patch("/activar/{tenant_id}", response_model=TenantSchema)
@@ -109,8 +122,8 @@ async def activate_tenant(
             status_code=403,
             detail="No tienes permiso para acceder a esta ruta"
         )
-    tenant_services.activate_tenant(db, tenant_id)
-    return tenant_services.get_tenant_by_id(db, tenant_id)
+    await tenant_services.activate_tenant(db, tenant_id)
+    return await tenant_services.get_tenant(db, tenant_id)
 # Desactivar tenant - solo Admin
 @router.patch("/desactivar/{tenant_id}", response_model=TenantSchema)
 async def deactivate_tenant(
@@ -123,5 +136,5 @@ async def deactivate_tenant(
             status_code=403,
             detail="No tienes permiso para acceder a esta ruta"
         )
-    tenant_services.deactivate_tenant(db, tenant_id)
-    return tenant_services.get_tenant_by_id(db, tenant_id)
+    await tenant_services.deactivate_tenant(db, tenant_id)
+    return await tenant_services.get_tenant(db, tenant_id)

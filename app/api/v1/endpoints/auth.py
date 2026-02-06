@@ -73,4 +73,42 @@ async def reset_password(
     current_user: Annotated[Any, Depends(get_current_user)] = None
 ):
     # Lógica de permisos manejada en el servicio
+    # Lógica de permisos manejada en el servicio
     return await user_services.reset_password(db, current_user, target_user_id, password_data.new_password)
+
+from app.schemas.user import PasswordRecoveryRequest
+from fastapi.responses import JSONResponse
+
+@router.post("/recover-password")
+async def recover_password(
+    request: PasswordRecoveryRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Initiates password recovery.
+    - ADMIN: Simulates email (logs to console).
+    - COMPANY/EMPLOYEE: Creates a NOTIFICATION for their supervisor.
+    """
+    from app.services import notification_services
+    from app.models.enums import Roles
+
+    user = await user_services.get_by_username(db, request.username)
+    
+    if user:
+        if user.role == Roles.ADMIN:
+            # ADMIN -> Self Service Simulation
+            fake_token = f"reset-token-for-{user.id}" 
+            print(f"")
+            print(f"==================================================")
+            print(f"[SIMULACION EMAIL - ADMIN] Recuperación de Contraseña")
+            print(f"Para: {user.username}")
+            print(f"Link: https://negociapp.com/reset-password?token={fake_token}")
+            print(f"==================================================")
+            print(f"")
+        else:
+            # COMPANY / EMPLOYEE -> Notification to Superior
+            await notification_services.create_reset_request(db, user.username)
+
+
+
+    return JSONResponse(status_code=200, content={"message": "Si el usuario existe, se han enviado las instrucciones."})

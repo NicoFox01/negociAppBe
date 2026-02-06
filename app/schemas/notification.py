@@ -17,6 +17,8 @@ class NotificationUpdate(NotificationBase):
 
 class NotificationSchema(NotificationBase):
     id: UUID
+    user_id: UUID
+    tenant_id: UUID
     status: NotificationStatus
     created_at: datetime
     

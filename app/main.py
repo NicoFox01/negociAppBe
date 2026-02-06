@@ -7,6 +7,18 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
+# CORS (Cross-Origin Resource Sharing)
+# Permite que el Frontend (puerto 5500/3000/etc) hable con el Backend (8000)
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # En producción, cambia esto por la URL real de tu frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Incluimos todas las rutas bajo /api/v1
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

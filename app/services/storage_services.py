@@ -12,6 +12,11 @@ async def upload_payment_proof(
         if file.content_type not in ["application/pdf", "image/jpeg", "image/png"]:
             raise HTTPException(status_code=400, detail="Formato de archivo no válido. Debe ser PDF, JPG o PNG.")
         file_content = await file.read()
+        
+        # Limit to 5MB
+        if len(file_content) > 5 * 1024 * 1024:
+             raise HTTPException(status_code=400, detail="El archivo excede el tamaño máximo permitido de 5MB")
+
         file_extension = file.filename.split(".")[-1]
         file_path = f"payments/{tenant_id}/{uuid4()}.{file_extension}"
 

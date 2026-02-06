@@ -22,5 +22,6 @@ class PaymentSchema(PaymentBase):
     tenant_id: UUID
     payment_date: datetime
     status: PaymentStatus
+    proof_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
