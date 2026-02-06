@@ -20,6 +20,7 @@ class UserUpdate(BaseModel):
 class UserSchema(UserBase):
     id: UUID
     tenant_id: UUID
+    tenant_name: Optional[str] = None
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
@@ -29,3 +30,6 @@ class PasswordChange(BaseModel):
     new_password: str
 class PasswordReset(BaseModel):
     new_password: str
+
+class PasswordRecoveryRequest(BaseModel):
+    username: str
