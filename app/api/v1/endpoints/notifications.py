@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.api.deps import get_current_user, get_db
 from app.models.enums import NotificationType, NotificationStatus
 from app.schemas.notification import NotificationCreate, NotificationSchema, NotificationUpdate
-from app.services import payments_services, storage_services
+from app.services import notification_services, payments_services, storage_services, user_services
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app.models.enums import Roles
@@ -85,7 +85,9 @@ async def resolve_notification_request(
     current_user: Annotated["Users", Depends(get_current_user)],
     db: AsyncSession = Depends(get_db)
 ):
-    notification_to_update = await db.execute(select(Notification).where(Notification.id == notification_id))
+    result = await db.execute(select(Notification).where(Notification.id == notification_id))
+    notification_to_update = result.scalar_one_or_none()
+    
     if not notification_to_update:
         raise HTTPException (
             status_code=404,
@@ -101,11 +103,11 @@ async def resolve_notification_request(
             status_code=400,
             detail="Status invalido. Solo se Permite IGNORED o RESOLVED."
         )
-    user_in_request = await user_services.get_by_id(notification_to_update.user_id)
+    user_in_request = await user_services.get_by_id(db, notification_to_update.user_id)
     if current_user.role == Roles.ADMIN:
         if user_in_request.role == Roles.EMPLOYEE:
             raise HTTPException(status_code=404, detail= "No puedes actualizar las contraseñas de empleados")
-        return notification_services.resolve_notification(db, notification_id, new_Status)
+        return await notification_services.resolve_notification(db, notification_id, new_Status)
     elif current_user.role == Roles.COMPANY:
         if notification_to_update.tenant_id != current_user.tenant_id:
             raise HTTPException(status_code=404, detail="No puedes actualizar la contraseña de alguien fuera de tu compañía.")
@@ -113,10 +115,10 @@ async def resolve_notification_request(
             Roles.COMPANY,
             Roles.ADMIN
         }
-        if user_in_request.role == not_allowed_roles:
+        if user_in_request.role in not_allowed_roles:
             raise HTTPException(status_code=404, detail= "Unicamente tenes permisos para actualizar la contraseña de los empleados de tu compañía ")
          
-        return notification_services.get_notifications(db,current_user.tenant_id, new_Status, role=Roles.EMPLOYEE)
+        return await notification_services.resolve_notification(db, notification_id, new_Status)
     else:
         raise HTTPException(
             status_code=403,

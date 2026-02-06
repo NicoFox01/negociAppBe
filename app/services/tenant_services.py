@@ -12,6 +12,13 @@ from app.schemas.user import UserCreate
 from app.models.enums import Roles
 from app.core.security import get_password_hash
 
+async def get_all_tenants(db: AsyncSession):
+    try:
+        result = await db.execute(select(Tenants))
+        return result.scalars().all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def get_tenant(db: AsyncSession, tenant_id: UUID):
     try:
         result = await db.execute(select(Tenants).where(Tenants.id == tenant_id))
@@ -66,6 +73,19 @@ async def update_tenant(db: AsyncSession, tenant_id: UUID, tenant_update: Tenant
         await db.commit()
         await db.refresh(tenant)
         return tenant
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+async def delete_tenant(db: AsyncSession, tenant_id: UUID):
+    try:
+        tenant = await get_tenant(db, tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        
+        await db.delete(tenant)
+        await db.commit()
+        return {"message": "Empresa eliminada correctamente"}
     except Exception as e:
         await db.rollback()
         raise e

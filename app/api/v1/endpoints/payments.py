@@ -26,7 +26,7 @@ async def new_payment(
     if current_user.role != Roles.COMPANY:
         raise HTTPException(status_code=403, detail="Solo los responsables de la empresa pueden crear pagos")
     tenant_id = current_user.tenant_id
-    url_payment = storage_services.upload_payment_proof(file, tenant_id)
+    url_payment = await storage_services.upload_payment_proof(file, tenant_id)
     payment_data = PaymentCreate(
         amount=amount,
         type=type,
