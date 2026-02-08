@@ -19,6 +19,7 @@ app.add_middleware(
         "http://127.0.0.1:5500",
         "https://negociapp-fe-git-main-nicofox01s-projects.vercel.app",
         "https://negociapp-fe-nicofox01s-projects.vercel.app",
+        "https://negociapp-fe.vercel.app",
     ], # En producción, cambia esto por la URL real de tu frontend
     allow_credentials=True,
     allow_methods=["*"],
