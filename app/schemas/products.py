@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from typing import Optional
 
-from app.models.enums import PlanType
+from app.schemas.suppliers import SuppliersSchema
 
 class ProductsBase(BaseModel):
     name: str
@@ -37,3 +37,6 @@ class ProductsSchema(ProductsBase):
     supplier_id: UUID
 
     model_config = ConfigDict(from_attributes=True)
+    
+class ProductWithSuppliersSchema (ProductsSchema):
+    supplier: Optional[SuppliersSchema] = None
