@@ -22,3 +22,5 @@ class Tenants(Base):
     users = relationship("Users", back_populates="tenant", cascade="all, delete-orphan")
     payments = relationship("Payments", back_populates="tenant", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="tenant", cascade="all, delete-orphan")
+    suppliers = relationship("Supplier", back_populates="tenant", cascade="all, delete-orphan")
+    products = relationship("Product", back_populates="tenant", cascade="all, delete-orphan")
