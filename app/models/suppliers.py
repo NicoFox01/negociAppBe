@@ -17,4 +17,4 @@ class Supplier(Base):
 
     # Relationships
     tenant = relationship("Tenants", back_populates="suppliers", cascade="all, delete-orphan")
-    products = relationship("Product", back_populates="supplier", cascade="all, delete-orphan")
+    products = relationship("Product", back_populates="supplier", cascade="all, delete-orphan") 
