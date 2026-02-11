@@ -30,3 +30,21 @@ class NotificationStatus(str, enum.Enum):
 
 class NotificationType (str, enum.Enum):
     RESET_PASSWORD_REQUEST= "RESET_PASSWORD_REQUEST"
+    
+class PurchaseRequestStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    CANCELED = "CANCELED"
+
+class TransactionType(str, enum.Enum):
+    IN = "IN"
+    OUT = "OUT"
+    ADJUSTMENT = "ADJUSTMENT"
+
+class PurchaseOrderStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SENT = "SENT"
+    RECEIVED = "RECEIVED"
+    PARTIALLY_RECEIVED = "PARTIALLY_RECEIVED"
+    CANCELLED = "CANCELLED"
