@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from app.models.base import Base
 
-class Product(Base):
+class Products(Base):
     __tablename__ = "products"
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id = Column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
@@ -16,10 +16,10 @@ class Product(Base):
     base_price = Column(Numeric(10,2), nullable=False, default=0)
     cost_price = Column(Numeric(10,2), nullable=False, default=0)
     stock_quantity = Column(Numeric(10,2), nullable=False)
-    is_raw_material = Boolean(default=False)
+    is_raw_material = Column(Boolean, default=False)
     supplier_id = Column(PG_UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False)
     
-    __table_args__ = UniqueConstraint("sku", "tenant_id", name="uq_product_sku_tenant")
+    __table_args__ = (UniqueConstraint("sku", "tenant_id", name="uq_product_sku_tenant"), )
     # Relationships
     tenant = relationship("Tenants", back_populates="products")
-    supplier = relationship("Supplier", back_populates="products")
+    supplier = relationship("Suppliers", back_populates="products")
