@@ -15,7 +15,7 @@ class Product(Base):
     unit = Column(String(10), nullable=False, default="u")
     base_price = Column(Numeric(10,2), nullable=False, default=0)
     cost_price = Column(Numeric(10,2), nullable=False, default=0)
-    stock_quantity = Column(Integer(20), nullable=False, default=0)
+    stock_quantity = Column(Numeric(10,2), nullable=False)
     is_raw_material = Boolean(default=False)
     supplier_id = Column(PG_UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False)
     

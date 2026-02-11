@@ -25,3 +25,4 @@ class Tenants(Base):
     suppliers = relationship("Supplier", back_populates="tenant", cascade="all, delete-orphan")
     products = relationship("Product", back_populates="tenant", cascade="all, delete-orphan")
     requests = relationship("PurchaseRequest", back_populates="tenant", cascade="all, delete-orphan")
+ 

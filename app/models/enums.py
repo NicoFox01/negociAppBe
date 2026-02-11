@@ -36,3 +36,15 @@ class PurchaseRequestStatus(str, enum.Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     CANCELED = "CANCELED"
+
+class TransactionType(str, enum.Enum):
+    IN = "IN"
+    OUT = "OUT"
+    ADJUSTMENT = "ADJUSTMENT"
+
+class PurchaseOrderStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SENT = "SENT"
+    RECEIVED = "RECEIVED"
+    PARTIALLY_RECEIVED = "PARTIALLY_RECEIVED"
+    CANCELLED = "CANCELLED"
