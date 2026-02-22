@@ -23,4 +23,4 @@ class Payments(Base):
     status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
 
     # Relationship
-    tenant = relationship("Tenants", back_populates="payments")
+    tenant = relationship("Tenants", back_populates="payments") 

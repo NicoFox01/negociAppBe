@@ -34,9 +34,14 @@ async def register_transaction(
         raise HTTPException(status_code=404,  detail="Producto no encontrado")
     if quantity <=0:
         raise HTTPException(status_code=404, detail="Se debe agregar una cantidad superior a 0")
-    if transaction_type == TransactionType.IN:
+    if transaction_type == TransactionType.ADJUSTMENT:
+        if quantity < 0:
+            if product.stock_quantity < abs(quantity):
+                raise HTTPException(status_code=400, detail="Stock insuficiente para merma")
         product.stock_quantity += quantity
-    if transaction_type == TransactionType.OUT:
+    elif transaction_type == TransactionType.IN:
+        product.stock_quantity += quantity
+    elif transaction_type == TransactionType.OUT:
         if product.stock_quantity < quantity:
             raise HTTPException(status_code=400, detail="Stock insuficiente")
         product.stock_quantity -= quantity

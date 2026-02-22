@@ -15,7 +15,6 @@ class PaymentStatus(str, enum.Enum):
 class PaymentType(str, enum.Enum):
     PAGO_MENSUAL = "PAGO_MENSUAL"
     PAGO_ANUAL = "PAGO_ANUAL"
-    SOLICITUD_GRACIA = "SOLICITUD_GRACIA"
     
 
 class Roles(str, enum.Enum):

@@ -8,8 +8,44 @@ from app.models.products import Product
 from app.schemas.products import ProductsCreate,  ProductsUpdate
 from app.services.supplier_services import get_supplier_by_id
 
+import re
+
+async def generate_sku(db: AsyncSession, tenant_id: UUID, name: str) -> str:
+    # 1. Generate Prefix
+    cleaned_name = re.sub(r'[^a-zA-Z]', '', name)
+    prefix = (cleaned_name[:3] if len(cleaned_name) >= 3 else cleaned_name).upper()
+    if len(prefix) < 3:
+        prefix = (prefix + "XXX")[:3]
+    
+    # 2. Find similar SKUs
+    # Look for SKUs starting with PREFIX-
+    query = select(Product.sku).where(
+        Product.tenant_id == tenant_id,
+        Product.sku.like(f"{prefix}-%")
+    )
+    result = await db.execute(query)
+    existing_skus = result.scalars().all()
+    
+    # 3. Determine Max Number
+    max_num = 0
+    for sku in existing_skus:
+        # Expected format: AAA-001
+        parts = sku.split('-')
+        if len(parts) == 2 and parts[0] == prefix and parts[1].isdigit():
+            num = int(parts[1])
+            if num > max_num:
+                max_num = num
+    
+    # 4. Return new SKU
+    next_num = max_num + 1
+    return f"{prefix}-{next_num:03d}"
+
 async def create_product(db:AsyncSession, product_data:ProductsCreate, tenant_id:UUID)->Product:
     try:
+        # Auto-generate SKU if missing
+        if not product_data.sku:
+            product_data.sku = await generate_sku(db, tenant_id, product_data.name)
+
         new_product = Product(**product_data.model_dump())
         new_product.tenant_id = tenant_id
         await db.add(new_product)

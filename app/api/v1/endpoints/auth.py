@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import PlanType
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Annotated, TYPE_CHECKING, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
+
+from app.models.enums import Roles
 
 if TYPE_CHECKING:
     from app.models.user import Users
@@ -32,23 +34,45 @@ async def register(
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db)
-    ) -> Token:
+):
     user = await user_services.get_by_username(db, form_data.username)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
     if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code = 400, detail="Contraseña incorrecta")
+        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
     if not user.is_active:
-        raise HTTPException(status_code = 400, detail="Usuario inactivo")
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        raise HTTPException(status_code=400, detail="Usuario inactivo")
     
+    tenant = user.tenant
+    today = date.today()
+    warning_payment = False
+    
+    if tenant.subscription_end < today and not tenant.grace_period_used:
+        if user.role == Roles.COMPANY:
+            raise HTTPException(
+                status_code=403,
+                detail="Suscripción vencida, efectue el pago y notifiquelo para reactivar la suscripción"
+                )
+        else:
+            raise HTTPException(
+                status_code=403, 
+                detail="Problema general de conexión. Comuniquese con el/la responsable de tu empresa"
+                )
+    
+    if tenant.subscription_end and tenant.subscription_end <= today + timedelta(days=7):
+            if user.role == Roles.COMPANY:
+                warning_payment = True
+    
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(user.id), "role": user.role},
         expires_delta=access_token_expires
     )
+    
     return Token(
-        access_token=access_token,
-        token_type="bearer"
+        access_token=access_token, 
+        token_type="bearer",
+        warning_payment=warning_payment
     )
     
 

@@ -11,7 +11,7 @@ async def create_supplier(db:AsyncSession, supplier_data:SuppliersCreate, tenant
     try:
         new_supplier = Supplier(**supplier_data.model_dump())
         new_supplier.tenant_id = tenant_id
-        await db.add(new_supplier)
+        db.add(new_supplier)
         await db.commit()
         await db.refresh(new_supplier)
         return new_supplier
@@ -47,7 +47,7 @@ async def update_supplier(db:AsyncSession, supplier_data:SuppliersUpdate, suppli
         for field, value in update_data.items():
             setattr(supplier_to_update, field, value)
 
-        await db.add(supplier_to_update)
+        db.add(supplier_to_update)
         await db.commit()
         await db.refresh(supplier_to_update)
         return supplier_to_update

@@ -21,5 +21,6 @@ class SuppliersUpdate(SuppliersBase):
 class SuppliersSchema(SuppliersBase):
     id: UUID
     tenant_id: UUID
+    cbu: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)

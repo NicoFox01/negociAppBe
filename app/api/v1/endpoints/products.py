@@ -2,7 +2,7 @@ from uuid import UUID
 from app.api.deps import get_current_user, get_db
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Annotated, TYPE_CHECKING
+from typing import Annotated, TYPE_CHECKING, List
 
 from app.schemas.products import ProductsCreate, ProductsSchema, ProductsUpdate
 from app.services import product_services
@@ -13,7 +13,7 @@ from app.models.enums import Roles
 
 router = APIRouter()
 
-@router.get("/", response_model=ProductsSchema)
+@router.get("/", response_model=List[ProductsSchema])
 async def return_all_products(
     current_user: Annotated["Users", Depends(get_current_user)],
     db: AsyncSession = Depends(get_db)
@@ -48,7 +48,7 @@ async def return_product_by_id(
         detail="No tienes permiso para acceder a esta ruta"
         )
 
-@router.get("/{supplier_id}", response_model=ProductsSchema)
+@router.get("/supplier/{supplier_id}", response_model=List[ProductsSchema])
 async def return_products_by_suppliers(
     current_user: Annotated["Users", Depends(get_current_user)],
     supplier_id: UUID,
