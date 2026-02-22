@@ -23,7 +23,7 @@ class PurchaseOrder(Base):
 
     # Relationships
     tenant = relationship("Tenants")
-    supplier = relationship("Suppliers")
+    supplier = relationship("Supplier")
     items = relationship("PurchaseOrderItem", back_populates="order")
 
 

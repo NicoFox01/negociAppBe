@@ -130,6 +130,8 @@ async def change_password(db: AsyncSession, user_id: UUID, current_password: str
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         if not verify_password(current_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+        if new_password == current_password:
+            raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la actual")
         user.hashed_password = get_password_hash(new_password)
         db.add(user)
         await db.commit()

@@ -12,6 +12,11 @@ class InventoryTransactionCreate(InventoryTransactionBase):
     product_id: UUID
     reference_id: Optional[UUID]
 
+class InventoryTransactionAdjustment(InventoryTransactionBase):
+    transaction_type:TransactionType
+    product_id:UUID
+    quantity: int
+
 class InventoryTransactionSchema(InventoryTransactionBase):
     id: UUID
     tenant_id: UUID

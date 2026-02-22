@@ -39,7 +39,7 @@ async def return_supplier_by_id(
         detail="No tienes permiso para acceder a esta ruta"
         )
 
-@router.post("/", response_model=SuppliersCreate)
+@router.post("/", response_model=SuppliersSchema)
 async def new_supplier(
     current_user: Annotated["Users", Depends(get_current_user)],
     supplier_data:SuppliersCreate,
@@ -52,11 +52,11 @@ async def new_supplier(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
         )
-@router.patch("/{supplier_id}", response_model=SuppliersUpdate)
+@router.patch("/{supplier_id}", response_model=SuppliersSchema)
 async def modify_supplier(
     current_user: Annotated["Users", Depends(get_current_user)],
     supplier_id: UUID,
-    supplier_data:SuppliersCreate,
+    supplier_data:SuppliersUpdate,
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.COMPANY:

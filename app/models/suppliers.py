@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from app.models.base import Base
 
-class Suppliers(Base):
+class Supplier(Base):
     __tablename__ = "suppliers"
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id = Column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
@@ -16,5 +16,5 @@ class Suppliers(Base):
     cbu = Column(String(22), nullable=True)
 
     # Relationships
-    tenant = relationship("Tenants", back_populates="suppliers", cascade="all, delete-orphan")
-    products = relationship("Products", back_populates="supplier", cascade="all, delete-orphan") 
+    tenant = relationship("Tenants", back_populates="suppliers")
+    products = relationship("Product", back_populates="supplier", cascade="all, delete-orphan") 

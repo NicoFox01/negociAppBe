@@ -19,7 +19,11 @@ async def create_payment(
         db.add(new_payment)
         await db.commit()
         await db.refresh(new_payment)
-        await tenant_services.extend_subscription(db, tenant_id, 3)
+        tenant = await tenant_services.get_tenant(db, tenant_id)
+        if not tenant.grace_period_used:
+            await tenant_services.extend_subscription(db, tenant_id, days = 3)
+            tenant.grace_period_used = True
+            await db.commit()
         return new_payment
     except Exception as e:
         await db.rollback()
@@ -70,13 +74,18 @@ async def verify_payment(
         if not payment:
             raise HTTPException(status_code=404, detail="Pago no encontrado")
         payment.status = verification_status
+        tenant = await tenant_services.get_tenant(db, payment.tenant_id)
         if verification_status == PaymentStatus.APPROVED:
             if payment.type == PaymentType.PAGO_MENSUAL:
                 await tenant_services.extend_subscription(db, payment.tenant_id, months=1)
+                await tenant_services.extend_subscription(db, payment.tenant_id, days=-3)
+                
             elif payment.type == PaymentType.PAGO_ANUAL:
                 await tenant_services.extend_subscription(db, payment.tenant_id, months=12)
-        await db.commit()
-        await db.refresh(payment)
+                await tenant_services.extend_subscription(db, payment.tenant_id, days=-3)
+            tenant.grace_period_used = False
+            await db.commit()
+            await db.refresh(payment)
         return payment
     except Exception as e:
         await db.rollback()
@@ -101,3 +110,4 @@ async def get_payment_by_id(db: AsyncSession, payment_id: UUID):
     except Exception as e:
         await db.rollback()
         raise e
+

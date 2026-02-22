@@ -9,11 +9,13 @@ class ProductsBase(BaseModel):
     name: str
 
 class ProductsCreate(ProductsBase):
-    sku: str
+    sku: Optional[str] = None
     unit: str
     base_price: float = Field(..., ge=0)
     cost_price: float = Field(..., ge=0)
+    stock_quantity: float = Field(..., ge=0)
     is_raw_material: bool = False
+    expiration_date: Optional[date] = None
     supplier_id: UUID
 
 class ProductsUpdate(ProductsBase):
@@ -22,7 +24,9 @@ class ProductsUpdate(ProductsBase):
     unit: Optional[str] = None
     base_price: Optional[float] = Field(None, ge=0)
     cost_price: Optional[float] = Field(None, ge=0)
+    stock_quantity: Optional[float] = Field(None, ge=0)
     is_raw_material: Optional[bool] = None
+    expiration_date: Optional[date] = None
     supplier_id: Optional[UUID] = None
 
 class ProductsSchema(ProductsBase):
@@ -34,6 +38,7 @@ class ProductsSchema(ProductsBase):
     cost_price: float
     is_raw_material: bool
     stock_quantity: int
+    expiration_date: Optional[date]
     supplier_id: UUID
 
     model_config = ConfigDict(from_attributes=True)
