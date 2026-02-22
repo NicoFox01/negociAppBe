@@ -4,8 +4,8 @@ from app.models.tenant import Tenants
 from app.models.user import Users
 from app.models.payments import Payments
 from app.models.notifications import Notification
-from app.models.products import Products
-from app.models.suppliers import Suppliers
+from app.models.products import Product
+from app.models.suppliers import Supplier
 from app.models.requests import PurchaseRequest, PurchaseRequestItem
 from app.models.orders import PurchaseOrder, PurchaseOrderItem
 from app.models.inventory import InventoryTransaction

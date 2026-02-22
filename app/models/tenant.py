@@ -17,6 +17,7 @@ class Tenants(Base):
     contact_name = Column(String(100), nullable=False)
     phone_number = Column(String(30), nullable=True)
     contact_email = Column(String(50), nullable=True)
+    grace_period_used =Column(Boolean, default=False)
 
     # Relationships
     users = relationship("Users", back_populates="tenant", cascade="all, delete-orphan")

@@ -1,12 +1,12 @@
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy import ForeignKey, UniqueConstraint
-from sqlalchemy import Column, String, Boolean, Integer, Numeric
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, Date
 from sqlalchemy.orm import relationship
 from uuid import UUID, uuid4
 
 from app.models.base import Base
 
-class Products(Base):
+class Product(Base):
     __tablename__ = "products"
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id = Column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
@@ -17,9 +17,10 @@ class Products(Base):
     cost_price = Column(Numeric(10,2), nullable=False, default=0)
     stock_quantity = Column(Numeric(10,2), nullable=False)
     is_raw_material = Column(Boolean, default=False)
+    expiration_date = Column(Date, nullable=True)
     supplier_id = Column(PG_UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False)
     
     __table_args__ = (UniqueConstraint("sku", "tenant_id", name="uq_product_sku_tenant"), )
     # Relationships
     tenant = relationship("Tenants", back_populates="products")
-    supplier = relationship("Suppliers", back_populates="products")
+    supplier = relationship("Supplier", back_populates="products")

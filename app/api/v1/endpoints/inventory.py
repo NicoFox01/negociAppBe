@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.enums import Roles
 from app.models.user import Users
-from app.schemas.inventory import InventoryTransactionSchema, InventoryTransactionCreate
+from app.schemas.inventory import InventoryTransactionSchema, InventoryTransactionCreate, InventoryTransactionAdjustment
 from app.services import inventory_services
 
 router = APIRouter()
@@ -48,3 +48,22 @@ async def read_product_history(
         product_id=product_id,
         tenant_id=current_user.tenant_id
     )
+
+@router.post("/adjust", response_model=InventoryTransactionAdjustment)
+async def create_adjustment(
+    adjustment: InventoryTransactionAdjustment,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]:
+        raise HTTPException(status_code=403, detail="No tienes permisos")
+    
+    return await inventory_services.register_transaction(
+        db=db,
+        product_id=adjustment.product_id,
+        quantity=adjustment.quantity,
+        transaction_type=adjustment.transaction_type,
+        tenant_id=current_user.tenant_id,
+        reference_id=None
+    )
+    

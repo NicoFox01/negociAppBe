@@ -1,5 +1,5 @@
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from app.models.enums import PaymentStatus, PaymentType
 from datetime import date, datetime
@@ -17,6 +17,9 @@ class PaymentCreate(PaymentBase):
 class PaymentUpdate(PaymentBase):
     status: Optional[PaymentStatus]
 
+class PaymentProofCreate(PaymentBase):
+    type: PaymentType = Field(...,  description="tipo de pago: Mensual o anual")
+    
 class PaymentSchema(PaymentBase):
     id: UUID
     tenant_id: UUID

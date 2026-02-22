@@ -7,7 +7,8 @@ from fastapi import HTTPException
 
 from app.models.enums import PurchaseOrderStatus, PurchaseRequestStatus, TransactionType
 from app.models.orders import PurchaseOrder, PurchaseOrderItem
-from app.models.requests import PurchaseRequest, PurchaseRequestItem, Product
+from app.models.requests import PurchaseRequest, PurchaseRequestItem
+from app.models.products import Product
 from app.services.inventory_services import register_transaction
 from app.schemas.orders import OrderUpdate
 

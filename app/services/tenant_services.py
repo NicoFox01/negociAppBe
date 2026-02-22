@@ -130,7 +130,6 @@ async def extend_subscription(db: AsyncSession, tenant_id: UUID, days: int = 0, 
         tenant = await get_tenant(db, tenant_id)
         if not tenant:
             raise HTTPException(status_code=404, detail="Empresa no encontrada")
-        
         current_end = tenant.subscription_end
         base_date = current_end if current_end and current_end >= date.today() else date.today()
         
