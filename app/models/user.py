@@ -21,3 +21,4 @@ class Users(Base):
     tenant = relationship("Tenants", back_populates="users")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     requests = relationship("PurchaseRequest", back_populates="user", cascade="all, delete-orphan")
+    client_orders = relationship("ClientOrder", back_populates="user")

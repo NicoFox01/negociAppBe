@@ -1,4 +1,6 @@
 from uuid import UUID
+
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.notifications import Notification
@@ -40,9 +42,9 @@ async def create_reset_request(
         await db.commit()
         await db.refresh(new_notification)
         return new_notification
-    except Exception as e:
+    except SQLAlchemyError:
         await db.rollback()
-        raise e
+        raise
 
 async def get_notifications(
     db: AsyncSession,
@@ -66,9 +68,9 @@ async def get_notifications(
         results = notifications.scalars().all()
 
         return results
-    except Exception as e:
+    except SQLAlchemyError:
         await db.rollback()
-        raise e
+        raise
 
 async def resolve_notification(
     db: AsyncSession,
@@ -88,8 +90,8 @@ async def resolve_notification(
         await db.commit()
         await db.refresh(change_password_request)
         return change_password_request
-    except Exception as e:
+    except SQLAlchemyError:
         await db.rollback()
-        raise e
+        raise
 
     

@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from fastapi import HTTPException
@@ -92,9 +93,12 @@ async def create_orders_from_requests(
             await db.refresh(order)
         return created_orders
 
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error creando órdenes: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def receive_order(
     db: AsyncSession,
@@ -165,11 +169,14 @@ async def receive_order(
         await db.refresh(order)
         return order
 
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=500, detail=f"Error recibiendo orden: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def get_orders(
     db: AsyncSession, 
