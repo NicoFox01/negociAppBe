@@ -28,6 +28,6 @@ async def upload_payment_proof(
         return public_url
     except Exception as e:
         print(f"Error al subir el archivo: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error al subir el archivo")
+        raise HTTPException(status_code=500, detail=str(e))
         
     

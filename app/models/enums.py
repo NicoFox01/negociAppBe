@@ -47,3 +47,15 @@ class PurchaseOrderStatus(str, enum.Enum):
     RECEIVED = "RECEIVED"
     PARTIALLY_RECEIVED = "PARTIALLY_RECEIVED"
     CANCELLED = "CANCELLED"
+
+class DiscountType(str, enum.Enum):
+    PERCENTAGE = "PERCENTAGE"
+    FIXED_AMOUNT = "FIXED_AMOUNT"
+
+class OrderStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    PREPARING = "PREPARING"
+    READY = "READY"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"

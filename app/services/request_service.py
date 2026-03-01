@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from fastapi import HTTPException
@@ -35,9 +36,12 @@ async def create_request(
         await db.refresh(new_request)
         return new_request
         
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error creando solicitud: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def get_requests(
     db: AsyncSession, 
@@ -57,8 +61,10 @@ async def get_requests(
 
         result = await db.execute(query)
         return result.scalars().unique().all()
+    except SQLAlchemyError:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error obteniendo solicitudes: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def get_request_by_id(
     db: AsyncSession, 
@@ -77,8 +83,10 @@ async def get_request_by_id(
         
         result = await db.execute(query)
         return result.scalars().unique().first()
+    except SQLAlchemyError:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error obteniendo solicitud: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def delete_request(
     db: AsyncSession, 
@@ -98,12 +106,15 @@ async def delete_request(
         await db.commit()
         return {"message": "Solicitud eliminada correctamente"}
         
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except HTTPException as he:
         await db.rollback()
         raise he
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error eliminando solicitud: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def update_request_status(
     db: AsyncSession, 
@@ -123,9 +134,12 @@ async def update_request_status(
         await db.refresh(request)
         return request
         
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except HTTPException as he:
         await db.rollback()
         raise he
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error actualizando estado: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

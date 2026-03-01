@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from fastapi import HTTPException
 
@@ -52,6 +53,9 @@ async def create_product(db:AsyncSession, product_data:ProductsCreate, tenant_id
         await db.commit()
         await db.refresh(new_product)
         return new_product
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -60,6 +64,9 @@ async def get_products(db:AsyncSession, tenant_id: UUID) ->List[Product]:
     try:
         result = await db.execute(select(Product).where(Product.tenant_id == tenant_id))
         return result.scalars().all()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -71,6 +78,9 @@ async def get_products_by_supplier(db:AsyncSession, tenant_id: UUID, supplier_id
             Product.supplier_id == supplier_id
             ))
         return result.scalars().all()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -82,6 +92,9 @@ async def get_product_by_id(db:AsyncSession, product_id: UUID, tenant_id:UUID)->
             Product.tenant_id == tenant_id
             ))
         return result.scalars().first()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -99,6 +112,9 @@ async def update_product(db:AsyncSession, product_data:ProductsUpdate, product_i
         await db.commit()
         await db.refresh(product_to_update)
         return product_to_update
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -112,6 +128,9 @@ async def delete_product(db:AsyncSession, product_id:UUID, tenant_id:UUID)-> Non
         await db.delete(product_to_delete)
         await db.commit()
         return {"message": "Producto eliminado correctamente"}
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
