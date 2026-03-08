@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from typing import List, Optional
 
-from sqlalchemy import JSON
+from pydantic import Json
 
 from app.schemas.products import ProductsSchema
 from app.models.enums import PurchaseOrderStatus, DiscountType, OrderStatus
@@ -160,6 +160,6 @@ class ClientOrderSchema(ClientOrderBase):
     created_at: datetime
     last_modified_by: Optional[UUID]=None
     modification_count: int = Field(..., ge=0)
-    original_value_snapshot: Optional[JSON] = None
+    original_value_snapshot: Optional[Json] = None
     items: List[ClientOrderItemSchema]
     model_config = ConfigDict(from_attributes=True)
