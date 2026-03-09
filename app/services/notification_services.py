@@ -9,6 +9,8 @@ from app.schemas.notification import NotificationCreate
 from app.services import user_services
 from fastapi import HTTPException
 from typing import Optional
+from app.models.user import Users
+from app.utils.pagination import paginate
 
 async def create_reset_request(
     db: AsyncSession,
@@ -50,7 +52,9 @@ async def get_notifications(
     db: AsyncSession,
     tenant_id: Optional[UUID],
     status: Optional[NotificationStatus],
-    creator_role: Optional[Roles] = None
+    creator_role: Optional[Roles] = None,
+    skip: int = 0,
+    limit: int = 10
 ):
     try:
         query = select(Notification)
@@ -59,12 +63,8 @@ async def get_notifications(
         if status:
             query = query.where(Notification.status == status)
         if creator_role:
-             # Use explicit join for reliability with AsyncSession
-             from app.models.user import Users
              query = query.join(Notification.user).where(Users.role == creator_role)
-             
-        
-        notifications = await db.execute(query)
+        notifications = await db.execute(paginate(query, skip, limit))
         results = notifications.scalars().all()
 
         return results

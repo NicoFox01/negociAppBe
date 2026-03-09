@@ -11,6 +11,9 @@ from app.models.enums import TransactionType
 
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+
+from app.utils.pagination import paginate
+
 ARG = ZoneInfo("America/Argentina/Buenos_Aires")
 
 async def register_transaction(
@@ -58,9 +61,10 @@ async def register_transaction(
     await db.refresh(new_transaction)
     return new_transaction
 
-async def get_product_history(db: AsyncSession, product_id: UUID, tenant_id:UUID):
-    product_history = await db.execute(select(InventoryTransaction).where(
+async def get_product_history(db: AsyncSession, product_id: UUID, tenant_id:UUID,  skip: int = 0, limit: int = 10):
+    query = select(InventoryTransaction).where(
         InventoryTransaction.product_id == product_id,
         InventoryTransaction.tenant_id == tenant_id
-    ).order_by(InventoryTransaction.created_at.desc()))
+    ).order_by(InventoryTransaction.created_at.desc())
+    product_history = await db.execute(paginate(query, skip, limit))
     return product_history.scalars().all()

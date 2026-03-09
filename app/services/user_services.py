@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from dns.e164 import query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -9,6 +10,8 @@ from app.models.user import Users
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 from app.models.enums import Roles
+from app.utils.pagination import paginate
+
 
 async def get_by_username(db: AsyncSession, username: str):
     try:
@@ -114,17 +117,19 @@ async def enable_user(db: AsyncSession, user_id: UUID):
         await db.rollback()
         raise
 
-async def get_all_users(db: AsyncSession):
+async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 0):
     try:
-        result = await db.execute(select(Users))
+        query = select(Users)
+        result = await db.execute(query, skip, limit)
         return result.scalars().all()
     except Exception as e:
         await db.rollback()
         raise
 
-async def get_all_users_by_tenant_id(db: AsyncSession, tenant_id: UUID):
+async def get_all_users_by_tenant_id(db: AsyncSession, tenant_id: UUID, skip: int = 0, limit: int = 0):
     try:
-        result = await db.execute(select(Users).where(Users.tenant_id == tenant_id))
+        query = select(Users).where(Users.tenant_id == tenant_id)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except Exception as e:
         await db.rollback()

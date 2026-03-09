@@ -11,6 +11,9 @@ from app.services.supplier_services import get_supplier_by_id
 
 import re
 
+from app.utils.pagination import paginate
+
+
 async def generate_sku(db: AsyncSession, tenant_id: UUID, name: str) -> str:
     # 1. Generate Prefix
     cleaned_name = re.sub(r'[^a-zA-Z]', '', name)
@@ -60,9 +63,10 @@ async def create_product(db:AsyncSession, product_data:ProductsCreate, tenant_id
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_products(db:AsyncSession, tenant_id: UUID) ->List[Product]:
+async def get_products(db:AsyncSession, tenant_id: UUID, skip: int=0, limit: int = 10) ->List[Product]:
     try:
-        result = await db.execute(select(Product).where(Product.tenant_id == tenant_id))
+        query = select(Product).where(Product.tenant_id == tenant_id)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -71,12 +75,13 @@ async def get_products(db:AsyncSession, tenant_id: UUID) ->List[Product]:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_products_by_supplier(db:AsyncSession, tenant_id: UUID, supplier_id:UUID) ->List[Product]:
+async def get_products_by_supplier(db:AsyncSession, tenant_id: UUID, supplier_id:UUID, skip: int=0, limit: int = 10) ->List[Product]:
     try:
-        result = await db.execute(select(Product).where(
+        query = select(Product).where(
             Product.tenant_id == tenant_id,
             Product.supplier_id == supplier_id
-            ))
+            )
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except SQLAlchemyError:
         await db.rollback()

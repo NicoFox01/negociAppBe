@@ -71,20 +71,24 @@ async def notify_payment(
 @router.get("/mis-pagos", response_model=List[PaymentSchema])
 async def list_of_my_payments(
         current_user: Annotated["Users", Depends(get_current_user)],
+        skip: int = 0,
+        limit: int = 10,
         db: AsyncSession = Depends(get_db)
 ):
     if current_user.role != Roles.COMPANY:
         raise HTTPException(status_code=403, detail="Solo los responsables de la empresa pueden ver sus pagos")
-    return await payments_services.my_payments(db, current_user.tenant_id)
+    return await payments_services.my_payments(db, current_user.tenant_id, skip, limit)
 
 @router.get("/pagos", response_model=list[PaymentSchema])
 async def list_of_payments(
     current_user: Annotated["Users", Depends(get_current_user)],
+    skip: int = 0,
+    limit: int = 10,
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role != Roles.ADMIN:
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta ruta")
-    return await payments_services.get_payments(db)
+    return await payments_services.get_payments(db, skip, limit)
 
 @router.patch("/{payment_id}", response_model=PaymentSchema)
 async def verify_payment(

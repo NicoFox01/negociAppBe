@@ -7,6 +7,8 @@ from fastapi import HTTPException
 
 from app.models.suppliers import Supplier
 from app.schemas.suppliers import SuppliersCreate, SuppliersUpdate
+from app.utils.pagination import paginate
+
 
 async def create_supplier(db:AsyncSession, supplier_data:SuppliersCreate, tenant_id:UUID)->Supplier:
     try:
@@ -23,9 +25,10 @@ async def create_supplier(db:AsyncSession, supplier_data:SuppliersCreate, tenant
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_suppliers(db:AsyncSession, tenant_id:UUID) ->List[Supplier]:
+async def get_suppliers(db:AsyncSession, tenant_id:UUID, skip: int = 0, limit: int = 10) ->List[Supplier]:
     try:
-        result = await db.execute(select(Supplier).where(Supplier.tenant_id == tenant_id))
+        query = select(Supplier).where(Supplier.tenant_id == tenant_id)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except SQLAlchemyError:
         await db.rollback()

@@ -16,7 +16,9 @@ router = APIRouter()
 @router.get("/", response_model=List[ProductsSchema])
 async def return_all_products(
     current_user: Annotated["Users", Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     Allowed_roles = {
         Roles.COMPANY,
@@ -24,7 +26,7 @@ async def return_all_products(
     }
     if current_user.role in Allowed_roles:
         tenant_id = current_user.tenant_id
-        return await product_services.get_products(db, tenant_id)
+        return await product_services.get_products(db, tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -34,7 +36,7 @@ async def return_all_products(
 async def return_product_by_id(
     current_user: Annotated["Users", Depends(get_current_user)],
     product_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     Allowed_roles = {
         Roles.COMPANY,
@@ -52,11 +54,13 @@ async def return_product_by_id(
 async def return_products_by_suppliers(
     current_user: Annotated["Users", Depends(get_current_user)],
     supplier_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await product_services.get_products_by_supplier(db, tenant_id, supplier_id)
+        return await product_services.get_products_by_supplier(db, tenant_id, supplier_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
