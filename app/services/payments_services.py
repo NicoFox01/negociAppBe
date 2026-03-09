@@ -7,6 +7,7 @@ from app.models.enums import PaymentStatus, PaymentType
 from app.schemas.payments import PaymentCreate
 from app.services import tenant_services
 from fastapi import HTTPException
+from app.utils.pagination import paginate
 
 # create_payment - COMPANY
 async def create_payment(
@@ -35,10 +36,13 @@ async def create_payment(
 #my_payments - COMPANY
 async def my_payments(
     db: AsyncSession,
-    tenant_id: UUID
+    tenant_id: UUID,
+    skip: int = 0,
+    limit: int = 10
 ):
     try:
-        payments = await db.execute(select(Payments).where(Payments.tenant_id == tenant_id))
+        query = select(Payments).where(Payments.tenant_id == tenant_id)
+        payments = await db.execute(paginate(query, skip, limit))
         return payments.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -105,9 +109,10 @@ async def verify_payment(
         raise HTTPException(status_code=500, detail=str(e))
 
 # get_payments - ADMIN
-async def get_payments(db: AsyncSession):
+async def get_payments(db: AsyncSession, skip: int = 0, limit: int = 10):
     try:
-        payments = await db.execute(select(Payments))
+        query = select(Payments)
+        payments = await db.execute(paginate(query, skip, limit))
         return payments.scalars().all()
     except Exception as e:
         await db.rollback()

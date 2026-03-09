@@ -1,3 +1,4 @@
+from typing import List
 from uuid import UUID
 from datetime import timedelta, date
 import calendar
@@ -12,10 +13,15 @@ from app.schemas.tenant import TenantCreate, TenantUpdate
 from app.schemas.user import UserCreate
 from app.models.enums import Roles
 from app.core.security import get_password_hash
+from typing import List
 
-async def get_all_tenants(db: AsyncSession):
+from app.utils.pagination import paginate
+
+
+async def get_all_tenants(db: AsyncSession, skip: int = 0, limit: int = 10) -> List[Tenants]:
     try:
-        result = await db.execute(select(Tenants))
+        query = select(Tenants)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except SQLAlchemyError:
         await db.rollback()

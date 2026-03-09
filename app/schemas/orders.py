@@ -40,7 +40,7 @@ class OrderCreate(OrderBase):
 class OrderUpdate(BaseModel):
     status: PurchaseOrderStatus
     expected_delivery_date: Optional [date] = None
-    notes: Optional [str] = None
+    notes: Optional[str] = Field(default=None, max_length=600)
 
 class OrderSchema(OrderBase):
     id: UUID
@@ -50,6 +50,12 @@ class OrderSchema(OrderBase):
     items: List[OrderItemSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+class OrderDirectCreate(BaseModel):
+    supplier_id: UUID
+    expected_delivery_date: Optional[date] = None
+    notes: Optional[str] = Field(default=None, max_length=600)
+    items: List[OrderItemCreate]
 
 class SalesChannelBase(BaseModel):
     name: str

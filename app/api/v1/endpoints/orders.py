@@ -8,10 +8,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user,get_db
 from app.models.enums import Roles, PurchaseOrderStatus
 from app.models.user import Users
-from app.schemas.orders import OrderSchema, OrderUpdate, OrderItemSchema
+from app.schemas.orders import OrderSchema, OrderUpdate, OrderItemSchema, OrderDirectCreate
 from app.services import order_services
 
 router = APIRouter()
+
+
+@router.post("/", response_model=OrderSchema)
+async def create_order_direct(
+    order_in: OrderDirectCreate,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]:
+        raise HTTPException(
+            status_code=403, detail="No tienes permisos para crear órdenes."
+        )
+
+    return await order_services.create_order_direct(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        supplier_id=order_in.supplier_id,
+        items=[item.model_dump() for item in order_in.items],
+        expected_delivery_date=order_in.expected_delivery_date,
+        notes=order_in.notes,
+    )
+
 
 @router.post("/generate", response_model=List[OrderSchema])
 async def generate_orders(
@@ -29,11 +51,23 @@ async def generate_orders(
     )
 
 
+@router.post("/", response_model=OrderSchema)
+async def create_order_direct(
+    order_in: OrderDirectCreate,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role != Roles.COMPANY:
+        raise HTTPException(
+            status_code=403, detail="No tienes permisos para generar órdenes."
+        )
+    tenant_id = current_user.tenant_id
+    return await order_services.create_order_direct(db, tenant_id, orden_id)
 @router.get("/", response_model=List[OrderSchema])
 async def read_orders(
     status: Optional[PurchaseOrderStatus] = None,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 10,
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -77,12 +111,6 @@ async def receive_order_items(
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Receive items for a purchase order.
-    Updates the received quantity and adjusts inventory stock (IN).
-    Only for COMPANY role (or authorized employees).
-    Expects a list of dicts: [{"product_id": "...", "quantity": 10}, ...]
-    """
     if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]: 
          # Assuming only company admins or specific roles can receive stock for now
         raise HTTPException(
