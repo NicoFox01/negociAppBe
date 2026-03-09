@@ -311,6 +311,11 @@ async def create_order(db:AsyncSession, tenant_id:UUID, order_data:ClientOrderCr
         order_items = []
 
         for item in order_data.items:
+            product = await get_product_by_id(db, item.product_id, tenant_id)
+            if not product:
+                raise HTTPException(status_code=404, detail=f"producto no encontrado: {item.product_id}")
+            if product.stock_quantity < item.quantity:
+                raise HTTPException(status_code=400, detail=f"falta stock para la transacción de: {item.product_id} tiene {product.stock_quantity} y necesitas como minimo {item.quantity}")
             promotion_product = await get_active_promotion(db, order_data.channel_id, tenant_id, product_id=item.product_id)
             promotion_channel = await get_active_promotion(db, order_data.channel_id, tenant_id, product_id=None)
             promotion = promotion_product or promotion_channel
@@ -322,11 +327,9 @@ async def create_order(db:AsyncSession, tenant_id:UUID, order_data:ClientOrderCr
             if product_price:
                 unit_price = product_price.price
             else:
-                product = await db.get(Product, item.product_id)
                 unit_price = product.base_price
 
             # Obtener costo del producto
-            product = await db.get(Product, item.product_id)
             unit_cost = product.cost_price
 
             # Calcular subtotal
@@ -482,6 +485,12 @@ async def update_order(db: AsyncSession, order_id: UUID, tenant_id: UUID, order_
                     "unit_price": unit_price,
                     "unit_cost": unit_cost
                 })
+            if order.modification_count == 0:
+                order.original_value_snapshot = {
+                    "total_amount": float(order.total_amount),
+                    "total_cost": float(order.total_cost),
+                    "status": order.status.value
+                }
             order.total_amount = total_amount
             order.total_cost = total_cost
             order.modification_count += 1
