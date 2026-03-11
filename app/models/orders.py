@@ -107,7 +107,7 @@ class ClientOrder(Base):
     #Relationships
     tenant = relationship("Tenants", back_populates="client_orders")
     channel = relationship("SalesChannel", back_populates="orders")
-    user = relationship("Users", back_populates="user")
+    user = relationship("Users", back_populates="client_orders")
     items = relationship("ClientOrderItem", back_populates="order")
 
 class ClientOrderItem(Base):
