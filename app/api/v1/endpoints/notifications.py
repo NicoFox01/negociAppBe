@@ -20,6 +20,8 @@ router = APIRouter()
 @router.get("/", response_model=List[NotificationSchema])
 async def get_my_notifications(
     current_user: Annotated["Users", Depends(get_current_user)],
+    skip: int = 0,
+    limit: int = 10,
     db: AsyncSession = Depends(get_db),
     status: Optional[NotificationStatus] = Query(None)
 ):
@@ -28,7 +30,9 @@ async def get_my_notifications(
             db, 
             tenant_id=current_user.tenant_id,
             status=status, 
-            creator_role=Roles.EMPLOYEE
+            creator_role=Roles.EMPLOYEE,
+            skip=skip,
+            limit=limit
         )
     elif current_user.role == Roles.ADMIN:
         return await notification_services.get_notifications(

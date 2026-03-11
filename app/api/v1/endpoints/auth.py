@@ -46,13 +46,11 @@ async def login(
     tenant = user.tenant
     today = date.today()
     warning_payment = False
+    subscription_overdue = False
     
-    if tenant.subscription_end < today and not tenant.grace_period_used:
+    if tenant.subscription_end < today:
         if user.role == Roles.COMPANY:
-            raise HTTPException(
-                status_code=403,
-                detail="Suscripción vencida, efectue el pago y notifiquelo para reactivar la suscripción"
-                )
+                subscription_overdue = True
         else:
             raise HTTPException(
                 status_code=403, 
@@ -72,7 +70,8 @@ async def login(
     return Token(
         access_token=access_token, 
         token_type="bearer",
-        warning_payment=warning_payment
+        warning_payment=warning_payment,
+        subscription_overdue=subscription_overdue
     )
     
 

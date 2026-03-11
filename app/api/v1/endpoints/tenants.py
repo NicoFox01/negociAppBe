@@ -23,10 +23,12 @@ router = APIRouter()
 @router.get("/", response_model=List[TenantSchema])
 async def return_all_tenants(
     current_user: Annotated["Users", Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.ADMIN:
-        return await tenant_services.get_all_tenants(db)
+        return await tenant_services.get_all_tenants(db, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

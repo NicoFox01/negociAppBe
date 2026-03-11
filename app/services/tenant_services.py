@@ -1,7 +1,9 @@
+from typing import List
 from uuid import UUID
 from datetime import timedelta, date
 import calendar
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from fastapi import HTTPException
 
@@ -11,19 +13,32 @@ from app.schemas.tenant import TenantCreate, TenantUpdate
 from app.schemas.user import UserCreate
 from app.models.enums import Roles
 from app.core.security import get_password_hash
+from typing import List
 
-async def get_all_tenants(db: AsyncSession):
+from app.utils.pagination import paginate
+
+
+async def get_all_tenants(db: AsyncSession, skip: int = 0, limit: int = 10) -> List[Tenants]:
     try:
-        result = await db.execute(select(Tenants))
+        query = select(Tenants)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_tenant(db: AsyncSession, tenant_id: UUID):
     try:
         result = await db.execute(select(Tenants).where(Tenants.id == tenant_id))
         return result.scalars().first()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 async def create_tenant_with_admin(db: AsyncSession, tenant_data: TenantCreate, admin_user_data: UserCreate) -> Tenants:
@@ -55,9 +70,12 @@ async def create_tenant_with_admin(db: AsyncSession, tenant_data: TenantCreate, 
         await db.refresh(new_tenant)
         return new_tenant
 
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def update_tenant(db: AsyncSession, tenant_id: UUID, tenant_update: TenantUpdate):
     try:
@@ -73,9 +91,12 @@ async def update_tenant(db: AsyncSession, tenant_id: UUID, tenant_update: Tenant
         await db.commit()
         await db.refresh(tenant)
         return tenant
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def delete_tenant(db: AsyncSession, tenant_id: UUID):
     try:
@@ -86,9 +107,12 @@ async def delete_tenant(db: AsyncSession, tenant_id: UUID):
         await db.delete(tenant)
         await db.commit()
         return {"message": "Empresa eliminada correctamente"}
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def deactivate_tenant(db: AsyncSession, tenant_id: UUID):
     try:
@@ -100,9 +124,12 @@ async def deactivate_tenant(db: AsyncSession, tenant_id: UUID):
         db.add(tenant)
         await db.commit()
         return tenant
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def activate_tenant(db: AsyncSession, tenant_id: UUID):
     try:
@@ -114,9 +141,12 @@ async def activate_tenant(db: AsyncSession, tenant_id: UUID):
         db.add(tenant)
         await db.commit()
         return tenant
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 def add_months(source_date: date, months: int) -> date:
     month = source_date.month - 1 + months

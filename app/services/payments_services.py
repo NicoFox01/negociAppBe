@@ -1,11 +1,13 @@
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from app.models.payments import Payments
 from app.models.enums import PaymentStatus, PaymentType
 from app.schemas.payments import PaymentCreate
 from app.services import tenant_services
 from fastapi import HTTPException
+from app.utils.pagination import paginate
 
 # create_payment - COMPANY
 async def create_payment(
@@ -25,20 +27,29 @@ async def create_payment(
             tenant.grace_period_used = True
             await db.commit()
         return new_payment
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 #my_payments - COMPANY
 async def my_payments(
     db: AsyncSession,
-    tenant_id: UUID
+    tenant_id: UUID,
+    skip: int = 0,
+    limit: int = 10
 ):
     try:
-        payments = await db.execute(select(Payments).where(Payments.tenant_id == tenant_id))
+        query = select(Payments).where(Payments.tenant_id == tenant_id)
+        payments = await db.execute(paginate(query, skip, limit))
         return payments.scalars().all()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 #cancel_payment - COMPANY
 async def cancel_payment(
     db: AsyncSession,
@@ -57,9 +68,12 @@ async def cancel_payment(
         await db.commit()
         await db.refresh(payment)
         return payment
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
     
 #verify_payment - ADMIN
 async def verify_payment(
@@ -87,14 +101,18 @@ async def verify_payment(
             await db.commit()
             await db.refresh(payment)
         return payment
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 # get_payments - ADMIN
-async def get_payments(db: AsyncSession):
+async def get_payments(db: AsyncSession, skip: int = 0, limit: int = 10):
     try:
-        payments = await db.execute(select(Payments))
+        query = select(Payments)
+        payments = await db.execute(paginate(query, skip, limit))
         return payments.scalars().all()
     except Exception as e:
         await db.rollback()
@@ -107,7 +125,10 @@ async def get_payment_by_id(db: AsyncSession, payment_id: UUID):
         if not payment:
             raise HTTPException(status_code=404, detail="Pago no encontrado")
         return payment
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
