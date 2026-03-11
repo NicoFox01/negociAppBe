@@ -37,6 +37,8 @@ async def read_product_history(
     product_id: UUID,
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]:
         raise HTTPException(
@@ -46,7 +48,9 @@ async def read_product_history(
     return await inventory_services.get_product_history(
         db=db,
         product_id=product_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.tenant_id,
+        skip=skip,
+        limit=limit
     )
 
 @router.post("/adjust", response_model=InventoryTransactionAdjustment)

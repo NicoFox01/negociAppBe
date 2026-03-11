@@ -16,11 +16,13 @@ router = APIRouter()
 @router.get("/", response_model=List[SuppliersSchema])
 async def return_all_suppliers(
     current_user: Annotated["Users", Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await supplier_services.get_suppliers(db, tenant_id)
+        return await supplier_services.get_suppliers(db, tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

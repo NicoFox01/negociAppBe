@@ -17,7 +17,9 @@ router = APIRouter()
 async def return_all_request(
     current_user: Annotated["Users", Depends(get_current_user)],
     status: Optional[PurchaseRequestStatus],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int=0,
+    limit: int=10
 ):
     allowed_roles = {
         Roles.EMPLOYEE,
@@ -25,7 +27,7 @@ async def return_all_request(
     }
     if current_user.role in allowed_roles:
         tenant_id = current_user.tenant_id
-        return await request_service.get_requests(db, tenant_id, status)
+        return await request_service.get_requests(db, tenant_id, status, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

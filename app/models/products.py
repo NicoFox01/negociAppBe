@@ -24,3 +24,7 @@ class Product(Base):
     # Relationships
     tenant = relationship("Tenants", back_populates="products")
     supplier = relationship("Supplier", back_populates="products")
+    channel_prices = relationship("ProductChannelPrice", back_populates="product", cascade="all, delete-orphan")
+    order_items = relationship("ClientOrderItem", back_populates="product")
+    transform_inputs = relationship("ProductionTransformInput", back_populates="product")
+    transform_outputs = relationship("ProductionTransformOutput", back_populates="product")

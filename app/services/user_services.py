@@ -1,4 +1,7 @@
 from uuid import UUID
+
+from dns.e164 import query
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
@@ -7,20 +10,24 @@ from app.models.user import Users
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 from app.models.enums import Roles
+from app.utils.pagination import paginate
+
 
 async def get_by_username(db: AsyncSession, username: str):
     try:
         result = await db.execute(select(Users).where(Users.username == username))
         return result.scalars().first()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
 
 async def get_by_id(db: AsyncSession, user_id: UUID):
     try:
         result = await db.execute(select(Users).where(Users.id == user_id))
         return result.scalars().first()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
 
 async def create_user(db: AsyncSession, user_data: UserCreate) -> Users:
     try:
@@ -42,9 +49,9 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> Users:
         await db.commit()
         await db.refresh(db_obj)
         return db_obj
-    except Exception as e:
+    except SQLAlchemyError:
         await db.rollback()
-        raise e
+        raise
 
 async def update_user(db: AsyncSession, user_id: UUID, user_update: UserUpdate) -> Users:
     try:
@@ -60,9 +67,12 @@ async def update_user(db: AsyncSession, user_id: UUID, user_update: UserUpdate) 
         await db.commit()
         await db.refresh(user)
         return user
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def delete_user(db: AsyncSession, user_id: UUID):
     try:
@@ -107,17 +117,19 @@ async def enable_user(db: AsyncSession, user_id: UUID):
         await db.rollback()
         raise
 
-async def get_all_users(db: AsyncSession):
+async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 0):
     try:
-        result = await db.execute(select(Users))
+        query = select(Users)
+        result = await db.execute(query, skip, limit)
         return result.scalars().all()
     except Exception as e:
         await db.rollback()
         raise
 
-async def get_all_users_by_tenant_id(db: AsyncSession, tenant_id: UUID):
+async def get_all_users_by_tenant_id(db: AsyncSession, tenant_id: UUID, skip: int = 0, limit: int = 0):
     try:
-        result = await db.execute(select(Users).where(Users.tenant_id == tenant_id))
+        query = select(Users).where(Users.tenant_id == tenant_id)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except Exception as e:
         await db.rollback()
@@ -130,16 +142,19 @@ async def change_password(db: AsyncSession, user_id: UUID, current_password: str
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         if not verify_password(current_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
-        if new_password == current_password:
+        if verify_password(new_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la actual")
         user.hashed_password = get_password_hash(new_password)
         db.add(user)
         await db.commit()
         await db.refresh(user)
         return {"message": "Contraseña actualizada correctamente"}
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def reset_password(db: AsyncSession, current_user: Users, target_user_id: UUID, new_password: str):
     try:
@@ -160,6 +175,9 @@ async def reset_password(db: AsyncSession, current_user: Users, target_user_id: 
         await db.commit()
         await db.refresh(target_user)
         return {"message": "Contraseña reseteada correctamente"}
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
