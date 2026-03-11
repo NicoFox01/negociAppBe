@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict
+from datetime import date
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,6 +13,8 @@ from app.models.requests import PurchaseRequest, PurchaseRequestItem
 from app.models.products import Product
 from app.services.inventory_services import register_transaction
 from app.schemas.orders import OrderUpdate
+from app.utils.pagination import paginate
+
 
 async def create_orders_from_requests(
     db: AsyncSession, 
@@ -100,6 +103,69 @@ async def create_orders_from_requests(
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+async def create_order_direct(
+    db: AsyncSession,
+    tenant_id: UUID,
+    supplier_id: UUID,
+    items: List[Dict],
+    expected_delivery_date: Optional[date] = None,
+    notes: Optional[str] = None
+) -> PurchaseOrder:
+    from app.models.suppliers import Supplier
+    
+    supplier = await db.get(Supplier, supplier_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    if supplier.tenant_id != tenant_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proveedor")
+
+    try:
+        new_order = PurchaseOrder(
+            tenant_id=tenant_id,
+            supplier_id=supplier_id,
+            status=PurchaseOrderStatus.DRAFT,
+            expected_delivery_date=expected_delivery_date,
+            notes=notes
+        )
+        db.add(new_order)
+        await db.flush()
+
+        for item in items:
+            product_id = item.get("product_id")
+            quantity = item.get("quantity")
+            
+            if not product_id or not quantity:
+                raise HTTPException(status_code=400, detail="Cada item debe tener product_id y quantity")
+
+            product = await db.get(Product, product_id)
+            if not product:
+                raise HTTPException(status_code=404, detail=f"Producto {product_id} no encontrado")
+            if product.tenant_id != tenant_id:
+                raise HTTPException(status_code=403, detail=f"No tienes acceso al producto {product_id}")
+
+            order_item = PurchaseOrderItem(
+                order_id=new_order.id,
+                product_id=product_id,
+                quantity=quantity,
+                unit_price=product.cost_price,
+                received_quantity=0
+            )
+            db.add(order_item)
+
+        await db.commit()
+        await db.refresh(new_order)
+        return new_order
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def receive_order(
     db: AsyncSession,
     tenant_id: UUID,
@@ -182,16 +248,16 @@ async def get_orders(
     db: AsyncSession, 
     tenant_id: UUID, 
     skip: int = 0, 
-    limit: int = 100,
+    limit: int = 10,
     status: Optional[PurchaseOrderStatus] = None
 ) -> List[PurchaseOrder]:
     query = select(PurchaseOrder).where(PurchaseOrder.tenant_id == tenant_id)
     if status:
         query = query.where(PurchaseOrder.status == status)
     
-    query = query.order_by(PurchaseOrder.created_at.desc()).offset(skip).limit(limit)
+    query = query.order_by(PurchaseOrder.created_at.desc())
     query = query.options(joinedload(PurchaseOrder.supplier))
-    result = await db.execute(query)
+    result = await db.execute(paginate(query, skip, limit))
     return result.scalars().unique().all()
 
 

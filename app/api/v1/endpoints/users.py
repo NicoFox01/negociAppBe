@@ -37,12 +37,14 @@ async def return_my_user(
 @router.get("/", response_model=list[UserSchema])
 async def return_all_users(
     current_user: Annotated["Users", Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.ADMIN:
-        return await user_services.get_all_users(db)
+        return await user_services.get_all_users(db, skip, limit)
     if current_user.role == Roles.COMPANY:
-        return await user_services.get_all_users_by_tenant_id(db, current_user.tenant_id)
+        return await user_services.get_all_users_by_tenant_id(db, current_user.tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -52,10 +54,12 @@ async def return_all_users(
 async def return_users_in_tenant(
     current_user: Annotated["Users", Depends(get_current_user)],
     tenant_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.ADMIN:
-        return await user_services.get_all_users_by_tenant_id(db, tenant_id)
+        return await user_services.get_all_users_by_tenant_id(db, tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

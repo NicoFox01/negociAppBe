@@ -1,4 +1,3 @@
-from rich.status import Status
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Numeric, JSON
 from sqlalchemy import Column, String, Boolean, Date,  Integer, DateTime
@@ -19,7 +18,7 @@ class PurchaseOrder(Base):
     supplier_id = Column(PG_UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False, index=True)
     status = Column(SQLEnum(PurchaseOrderStatus), default=PurchaseOrderStatus.DRAFT, nullable=False)
     expected_delivery_date = Column(Date, nullable=True)
-    notes = Column(String(200), nullable=True)
+    notes = Column(String(600), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ARG))
 
     # Relationships

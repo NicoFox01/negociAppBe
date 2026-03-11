@@ -34,11 +34,13 @@ async def new_channel(
 @router.get("/channels", response_model=List[SalesChannelSchema])
 async def return_channels(
         current_user: Annotated["Users", Depends(get_current_user)],
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        skip: int = 0,
+        limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await get_sales_channels(db, tenant_id)
+        return await get_sales_channels(db, tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -108,11 +110,13 @@ async def new_product_sales_channel_price(
 async def return_product_sales_channel_prices(
         current_user: Annotated["Users", Depends(get_current_user)],
         channel_id: UUID,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        skip: int = 0,
+        limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await get_all_product_prices(db, channel_id, tenant_id)
+        return await get_all_product_prices(db, channel_id, tenant_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -167,10 +171,12 @@ async def return_promotions(
     current_user: Annotated["Users", Depends(get_current_user)],
     channel_id: UUID,
     product_id: UUID | None = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
-        return await get_active_promotion(db, channel_id, tenant_id, product_id)
+        return await get_active_promotion(db, channel_id, tenant_id, product_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -181,11 +187,13 @@ async def return_active_promotions(
     current_user: Annotated["Users", Depends(get_current_user)],
     channel_id: UUID,
     product_id: UUID | None = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await get_active_promotion(db, channel_id, tenant_id,product_id)
+        return await get_active_promotion(db, channel_id, tenant_id, product_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -268,17 +276,19 @@ async def return_client_orders(
         current_user: Annotated["Users", Depends(get_current_user)],
         channel_id:UUID,
         status: Optional[OrderStatus],
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        skip: int = 0,
+        limit: int = 10
 ):
     if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await get_orders(db, tenant_id, channel_id, status)
+        return await get_orders(db, tenant_id, channel_id, status, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
     )
 
-@router.get("/clientOrder/{order_id}", response_model=List[ClientOrderSchema])
+@router.get("/clientOrder/{order_id}", response_model=ClientOrderSchema)
 async def return_client_order_by_id(
         current_user: Annotated["Users", Depends(get_current_user)],
         order_id:UUID,
@@ -297,11 +307,13 @@ async def return_client_order_by_channel_status(
         current_user: Annotated["Users", Depends(get_current_user)],
         channel_id: UUID,
         status: Optional[OrderStatus],
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        skip: int = 0,
+        limit: int = 10
 ):
     if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await get_orders(db, tenant_id, channel_id, status)
+        return await get_orders(db, tenant_id, channel_id, status, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

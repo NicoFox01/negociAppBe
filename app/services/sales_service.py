@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
+from dns.e164 import query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
@@ -16,6 +17,8 @@ from app.schemas.orders import SalesChannelSchema, ClientOrderSchema, ClientOrde
     ClientOrderCreate, ClientOrderItemCreate, SalesChannelUpdate, ClientOrderUpdate, ClientOrderItemUpdate, \
     PromotionCreate, PromotionUpdate, OrderCreate
 from app.models.enums import DiscountType, OrderStatus
+from app.utils.pagination import paginate
+
 
 #Services de SalesChannel:
 async def create_sales_channel(db: AsyncSession, tenant_id: UUID, channel_data: SalesChannelCreate) -> SalesChannel:
@@ -32,9 +35,10 @@ async def create_sales_channel(db: AsyncSession, tenant_id: UUID, channel_data: 
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_sales_channels(db: AsyncSession, tenant_id: UUID) -> List[SalesChannel]:
+async def get_sales_channels(db: AsyncSession, tenant_id: UUID, skip: int=0, limit: int = 0) -> List[SalesChannel]:
     try:
-        list_of_sales_channels = await db.execute(select(SalesChannel).where(SalesChannel.tenant_id == tenant_id))
+        query = select(SalesChannel).where(SalesChannel.tenant_id == tenant_id)
+        list_of_sales_channels = await db.execute(paginate(query, skip, limit))
         return list_of_sales_channels.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -43,9 +47,10 @@ async def get_sales_channels(db: AsyncSession, tenant_id: UUID) -> List[SalesCha
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     
-async def get_sales_channel_by_id(db:AsyncSession, channel_id:UUID, tenant_id:UUID) -> SalesChannel:
+async def get_sales_channel_by_id(db:AsyncSession, channel_id:UUID, tenant_id:UUID, skip: int=0, limit: int = 0) -> SalesChannel:
     try:
-        sales_channel = await db.execute(select(SalesChannel).where(SalesChannel.id == channel_id, SalesChannel.tenant_id == tenant_id))
+        query = select(SalesChannel).where(SalesChannel.id == channel_id, SalesChannel.tenant_id == tenant_id)
+        sales_channel = await db.execute(paginate(query, skip, limit))
         result = sales_channel.scalars().first()
         if not result:
             raise HTTPException(status_code=404, detail="Sales channel no encontrado")
@@ -140,12 +145,13 @@ async def get_product_price_by_id(db:AsyncSession, product_id:UUID, channel_id:U
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_all_product_prices (db:AsyncSession, channel_id:UUID, tenant_id:UUID) -> List[ProductChannelPrice]:
+async def get_all_product_prices (db:AsyncSession, channel_id:UUID, tenant_id:UUID, skip: int=0, limit: int = 0) -> List[ProductChannelPrice]:
     try:
-        list_of_channel_prices = await db.execute(select(ProductChannelPrice).where(
+        query = select(ProductChannelPrice).where(
             ProductChannelPrice.tenant_id == tenant_id,
             ProductChannelPrice.channel_id == channel_id
-        ))
+        )
+        list_of_channel_prices = await db.execute(paginate(query, skip, limit))
         return list_of_channel_prices.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -182,12 +188,13 @@ async def create_promotion(db:AsyncSession, tenant_id:UUID, promotion_data:Promo
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_promotions_by_channel(db:AsyncSession, channel_id:UUID, tenant_id:UUID) -> List[Promotion]:
+async def get_promotions_by_channel(db:AsyncSession, channel_id:UUID, tenant_id:UUID, skip: int=0, limit: int = 0) -> List[Promotion]:
     try:
-        list_of_promotion_channel = await db.execute(select(Promotion).where(
+        query = select(Promotion).where(
             Promotion.tenant_id == tenant_id,
             Promotion.channel_id == channel_id
-        ))
+        )
+        list_of_promotion_channel = await db.execute(paginate(query, skip, limit))
         return list_of_promotion_channel.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -213,7 +220,7 @@ async def get_promotion_by_id(db: AsyncSession, promotion_id: UUID, channel_id: 
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_active_promotion(db: AsyncSession, channel_id: UUID, tenant_id: UUID, product_id: UUID | None = None) -> list[Promotion]:
+async def get_active_promotion(db: AsyncSession, channel_id: UUID, tenant_id: UUID, product_id: UUID | None = None, skip: int=0, limit: int = 0) -> list[Promotion]:
     try:
         now = datetime.now(timezone.utc)
 
@@ -233,7 +240,7 @@ async def get_active_promotion(db: AsyncSession, channel_id: UUID, tenant_id: UU
         else:
             query = query.where(Promotion.product_id.is_(None))
 
-        result = await db.execute(query)
+        result = await db.execute(paginate(query, skip, limit))
         promotions = result.scalars().all()
         return promotions
     except SQLAlchemyError:
@@ -304,6 +311,11 @@ async def create_order(db:AsyncSession, tenant_id:UUID, order_data:ClientOrderCr
         order_items = []
 
         for item in order_data.items:
+            product = await get_product_by_id(db, item.product_id, tenant_id)
+            if not product:
+                raise HTTPException(status_code=404, detail=f"producto no encontrado: {item.product_id}")
+            if product.stock_quantity < item.quantity:
+                raise HTTPException(status_code=400, detail=f"falta stock para la transacción de: {item.product_id} tiene {product.stock_quantity} y necesitas como minimo {item.quantity}")
             promotion_product = await get_active_promotion(db, order_data.channel_id, tenant_id, product_id=item.product_id)
             promotion_channel = await get_active_promotion(db, order_data.channel_id, tenant_id, product_id=None)
             promotion = promotion_product or promotion_channel
@@ -315,11 +327,9 @@ async def create_order(db:AsyncSession, tenant_id:UUID, order_data:ClientOrderCr
             if product_price:
                 unit_price = product_price.price
             else:
-                product = await db.get(Product, item.product_id)
                 unit_price = product.base_price
 
             # Obtener costo del producto
-            product = await db.get(Product, item.product_id)
             unit_cost = product.cost_price
 
             # Calcular subtotal
@@ -384,7 +394,7 @@ async def create_order(db:AsyncSession, tenant_id:UUID, order_data:ClientOrderCr
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-async def get_orders(db:AsyncSession, tenant_id:UUID, channel_id: Optional[UUID], status: Optional[OrderStatus]) -> List[ClientOrder]:
+async def get_orders(db:AsyncSession, tenant_id:UUID, channel_id: Optional[UUID], status: Optional[OrderStatus], skip: int=0, limit: int = 0) -> List[ClientOrder]:
     try:
         query = (select(ClientOrder)
                  .where(ClientOrder.tenant_id == tenant_id)
@@ -399,7 +409,7 @@ async def get_orders(db:AsyncSession, tenant_id:UUID, channel_id: Optional[UUID]
 
         query = query.order_by(ClientOrder.created_at.desc())
 
-        result = await db.execute(query)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
 
     except SQLAlchemyError:
@@ -475,6 +485,12 @@ async def update_order(db: AsyncSession, order_id: UUID, tenant_id: UUID, order_
                     "unit_price": unit_price,
                     "unit_cost": unit_cost
                 })
+            if order.modification_count == 0:
+                order.original_value_snapshot = {
+                    "total_amount": float(order.total_amount),
+                    "total_cost": float(order.total_cost),
+                    "status": order.status.value
+                }
             order.total_amount = total_amount
             order.total_cost = total_cost
             order.modification_count += 1

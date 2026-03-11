@@ -10,6 +10,8 @@ from app.models.requests import PurchaseRequest, PurchaseRequestItem
 from app.models.products import Product
 from app.models.enums import PurchaseRequestStatus, Roles
 from app.schemas.requests import RequestCreate, RequestUpdate, RequestSchema
+from app.utils.pagination import paginate
+
 
 async def create_request(
     db: AsyncSession, 
@@ -46,6 +48,8 @@ async def create_request(
 async def get_requests(
     db: AsyncSession, 
     tenant_id: UUID,
+    skip: int = 0,
+    limit: int = 10,
     status: Optional[PurchaseRequestStatus] = None
 ) -> List[PurchaseRequest]:
     try:
@@ -59,7 +63,7 @@ async def get_requests(
             .joinedload(Product.supplier)
         ).order_by(PurchaseRequest.created_at.desc())
 
-        result = await db.execute(query)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().unique().all()
     except SQLAlchemyError:
         raise
