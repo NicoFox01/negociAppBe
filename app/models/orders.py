@@ -1,4 +1,3 @@
-from rich.status import Status
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Numeric, JSON
 from sqlalchemy import Column, String, Boolean, Date,  Integer, DateTime
