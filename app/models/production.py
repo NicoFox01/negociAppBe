@@ -16,7 +16,8 @@ class ProductionTransform(Base):
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ARG))
 
-    #Relationship
+    #Relationships
+    tenant = relationship("Tenants", back_populates="transformations")  # <-- AGREGAR ESTA LÍNEA
     inputs = relationship("ProductionTransformInput", back_populates="transform", cascade="all, delete-orphan")
     outputs = relationship("ProductionTransformOutput", back_populates="transform", cascade="all, delete-orphan")
 
