@@ -17,6 +17,7 @@ from app.schemas.orders import SalesChannelSchema, ClientOrderSchema, ClientOrde
     ClientOrderCreate, ClientOrderItemCreate, SalesChannelUpdate, ClientOrderUpdate, ClientOrderItemUpdate, \
     PromotionCreate, PromotionUpdate, OrderCreate
 from app.models.enums import DiscountType, OrderStatus
+from app.services.product_services import get_product_by_id
 from app.utils.pagination import paginate
 
 
