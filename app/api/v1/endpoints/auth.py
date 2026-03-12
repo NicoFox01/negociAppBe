@@ -48,14 +48,14 @@ async def login(
     warning_payment = False
     subscription_overdue = False
     
-    if tenant.subscription_end < today:
+    if tenant.subscription_end is not None and tenant.subscription_end < today:
         if user.role == Roles.COMPANY:
-                subscription_overdue = True
-        else:
+            subscription_overdue = True
+        elif user.role == Roles.EMPLOYEE:
             raise HTTPException(
                 status_code=403, 
-                detail="Problema general de conexión. Comuniquese con el/la responsable de tu empresa"
-                )
+                detail="Suscripción vencida. Contacte al administrador de su empresa."
+            )
     
     if tenant.subscription_end and tenant.subscription_end <= today + timedelta(days=7):
             if user.role == Roles.COMPANY:

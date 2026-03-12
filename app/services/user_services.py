@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException
+from sqlalchemy.orm import selectinload
 
 from app.models.user import Users
 from app.schemas.user import UserCreate, UserUpdate
@@ -15,7 +16,11 @@ from app.utils.pagination import paginate
 
 async def get_by_username(db: AsyncSession, username: str):
     try:
-        result = await db.execute(select(Users).where(Users.username == username))
+        result = await db.execute(
+            select(Users)
+            .options(selectinload(Users.tenant))
+            .where(Users.username == username)
+        )
         return result.scalars().first()
     except SQLAlchemyError:
         await db.rollback()
