@@ -51,18 +51,6 @@ async def generate_orders(
     )
 
 
-@router.post("/", response_model=OrderSchema)
-async def create_order_direct(
-    order_in: OrderDirectCreate,
-    current_user: Users = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    if current_user.role != Roles.COMPANY:
-        raise HTTPException(
-            status_code=403, detail="No tienes permisos para generar órdenes."
-        )
-    tenant_id = current_user.tenant_id
-    return await order_services.create_order_direct(db, tenant_id, orden_id)
 @router.get("/", response_model=List[OrderSchema])
 async def read_orders(
     status: Optional[PurchaseOrderStatus] = None,

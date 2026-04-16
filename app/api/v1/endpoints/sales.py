@@ -29,7 +29,7 @@ async def new_channel(
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
-        )
+    )
 
 @router.get("/channels", response_model=List[SalesChannelSchema])
 async def return_channels(
@@ -38,7 +38,7 @@ async def return_channels(
         skip: int = 0,
         limit: int = 10
 ):
-    if current_user.role == Roles.COMPANY:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_sales_channels(db, tenant_id, skip, limit)
     raise HTTPException(
@@ -52,7 +52,7 @@ async def return_channel(
         current_user: Annotated["Users", Depends(get_current_user)],
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role == Roles.COMPANY:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_sales_channel_by_id(db, channel_id, tenant_id)
     raise HTTPException(
@@ -67,9 +67,12 @@ async def modify_channel(
         channel_data: SalesChannelUpdate,
         db: AsyncSession = Depends(get_db)
 ):
+    print(f"DEBUG PATCH: channel_id={channel_id}, data={channel_data}")
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
-        return await update_sales_channel(db, channel_id, tenant_id, channel_data)
+        result = await update_sales_channel(db, channel_id, tenant_id, channel_data)
+        print(f"DEBUG PATCH: result={result}")
+        return result
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -114,7 +117,7 @@ async def return_product_sales_channel_prices(
         skip: int = 0,
         limit: int = 10
 ):
-    if current_user.role == Roles.COMPANY:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_all_product_prices(db, channel_id, tenant_id, skip, limit)
     raise HTTPException(
@@ -129,7 +132,7 @@ async def return_product_sales_channel_price(
         product_id: UUID,
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role == Roles.COMPANY:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_product_price_by_id(db, product_id, channel_id, tenant_id)
     raise HTTPException(
@@ -139,8 +142,10 @@ async def return_product_sales_channel_price(
 
 @router.delete("/channels/{channel_id}/prices/{product_id}", response_model=None)
 async def remove_product_sales_channel_price(
+        current_user: Annotated["Users", Depends(get_current_user)],
         channel_id: UUID,
-        product_id: UUID
+        product_id: UUID,
+        db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
@@ -260,12 +265,13 @@ async def remove_promotion(
 async def new_client_order(
         current_user: Annotated["Users", Depends(get_current_user)],
         order_data:ClientOrderCreate,
-        user_id:UUID,
+        user_id: UUID | None = None,
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await create_order(db, tenant_id, order_data, user_id)
+        final_user_id = user_id if user_id else current_user.id
+        return await create_order(db, tenant_id, order_data, final_user_id)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -274,13 +280,13 @@ async def new_client_order(
 @router.get("/clientOrder", response_model=List[ClientOrderSchema])
 async def return_client_orders(
         current_user: Annotated["Users", Depends(get_current_user)],
-        channel_id:UUID,
-        status: Optional[OrderStatus],
+        channel_id: Optional[UUID] = None,
+        status: Optional[OrderStatus] = None,
         db: AsyncSession = Depends(get_db),
         skip: int = 0,
-        limit: int = 10
+        limit: int = 100
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_orders(db, tenant_id, channel_id, status, skip, limit)
     raise HTTPException(
@@ -294,7 +300,7 @@ async def return_client_order_by_id(
         order_id:UUID,
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_order_by_id(db, order_id, tenant_id)
     raise HTTPException(
@@ -311,7 +317,7 @@ async def return_client_order_by_channel_status(
         skip: int = 0,
         limit: int = 10
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await get_orders(db, tenant_id, channel_id, status, skip, limit)
     raise HTTPException(
@@ -327,7 +333,7 @@ async def modify_client_order(
         order_data: ClientOrderUpdate,
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         user_id = current_user.id
         return await update_order(db, order_id, tenant_id, order_data, user_id)
@@ -342,7 +348,7 @@ async def cancel_client_order(
         order_id:UUID,
         db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role in [Roles.COMPANY or Roles.EMPLOYEE]:
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         return await cancel_order(db, order_id, tenant_id)
     raise HTTPException(

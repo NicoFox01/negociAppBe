@@ -39,6 +39,8 @@ class ProductionTransformSchema(ProductionTransformBase):
     id: UUID
     tenant_id: UUID
     user_id: UUID
+    user_name: Optional[str] = None
+    user_full_name: Optional[str] = None
     created_at: datetime
     inputs: List[TransformInputItemSchema]
     outputs: List[TransformOutputItemSchema]

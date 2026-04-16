@@ -18,6 +18,8 @@ class ProductsCreate(ProductsBase):
     expiration_date: Optional[date] = None
     supplier_id: UUID
 
+    model_config = ConfigDict(from_attributes=True)
+
 class ProductsUpdate(ProductsBase):
     name: Optional[str] = None
     sku: Optional[str] = None
@@ -37,7 +39,7 @@ class ProductsSchema(ProductsBase):
     base_price: float
     cost_price: float
     is_raw_material: bool
-    stock_quantity: int
+    stock_quantity: float
     expiration_date: Optional[date]
     supplier_id: UUID
 

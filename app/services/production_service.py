@@ -1,5 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
@@ -7,6 +8,7 @@ from sqlalchemy.orm import joinedload
 from fastapi import HTTPException
 from app.models.production import ProductionTransform, ProductionTransformInput, ProductionTransformOutput
 from app.models.products import Product
+from app.models.user import Users
 from app.models.inventory import InventoryTransaction
 from app.models.enums import TransactionType
 from app.schemas.production import ProductionTransformCreate, ProductionTransformSchema
@@ -46,7 +48,8 @@ async def create_transform(
                     detail=f"Stock insuficiente para {product.name}. "
                            f"Disponible: {product.stock_quantity}, necesario: {item.quantity}"
                 )
-            product.stock_quantity -= item.quantity
+            # Convertir a Decimal para la operación
+            product.stock_quantity = product.stock_quantity - Decimal(str(item.quantity))
 
             # Se crea una transacción de tipo salida
             transaction = InventoryTransaction(
@@ -80,7 +83,8 @@ async def create_transform(
                     status_code=404,
                     detail=f"Producto output no encontrado"
                 )
-            product.stock_quantity += item.quantity
+            # Convertir a Decimal para la operación
+            product.stock_quantity = product.stock_quantity + Decimal(str(item.quantity))
 
             # Se crea una transacción de tipo entrada
             transaction = InventoryTransaction(
@@ -105,8 +109,8 @@ async def create_transform(
         query = select(ProductionTransform).where(
             ProductionTransform.id == new_transform.id
         ).options(
-            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product),
-            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product)
+            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product).joinedload(Product.supplier),
+            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product).joinedload(Product.supplier)
         )
         result = await db.execute(query)
         return result.scalars().unique().first()
@@ -130,11 +134,23 @@ async def get_transforms(
         query = (select(ProductionTransform)
                  .where(ProductionTransform.tenant_id == tenant_id)
         .options(
-            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product),
-            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product)
-        ))
+            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product).joinedload(Product.supplier),
+            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product).joinedload(Product.supplier)
+        )
+        .order_by(ProductionTransform.created_at.desc()))
         result = await db.execute(paginate(query, skip, limit))
-        return result.scalars().unique().all()
+        transforms = result.scalars().unique().all()
+        
+        # Cargar nombres de usuarios
+        for transform in transforms:
+            user_query = select(Users).where(Users.id == transform.user_id)
+            user_result = await db.execute(user_query)
+            user = user_result.scalars().first()
+            if user:
+                transform.user_name = user.username
+                transform.user_full_name = user.full_name
+        
+        return transforms
     except SQLAlchemyError:
         await db.rollback()
         raise
@@ -152,8 +168,8 @@ async def get_transform_by_id(
                  .where(ProductionTransform.tenant_id == tenant_id,
                         ProductionTransform.id == transform_id)
         .options(
-            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product),
-            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product)
+            joinedload(ProductionTransform.inputs).joinedload(ProductionTransformInput.product).joinedload(Product.supplier),
+            joinedload(ProductionTransform.outputs).joinedload(ProductionTransformOutput.product).joinedload(Product.supplier)
         ))
         result = await db.execute(query)
         return result.scalars().unique().first()
