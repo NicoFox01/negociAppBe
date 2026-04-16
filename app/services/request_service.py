@@ -36,7 +36,17 @@ async def create_request(
             db.add(new_item)
         await db.commit()
         await db.refresh(new_request)
-        return new_request
+        
+        # Load relationships for response
+        query = select(PurchaseRequest).where(
+            PurchaseRequest.id == new_request.id
+        ).options(
+            joinedload(PurchaseRequest.items)
+            .joinedload(PurchaseRequestItem.product)
+            .joinedload(Product.supplier)
+        )
+        result = await db.execute(query)
+        return result.scalars().unique().first()
         
     except SQLAlchemyError:
         await db.rollback()

@@ -122,10 +122,10 @@ async def enable_user(db: AsyncSession, user_id: UUID):
         await db.rollback()
         raise
 
-async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 0):
+async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 10):
     try:
         query = select(Users)
-        result = await db.execute(query, skip, limit)
+        result = await db.execute(paginate(query, skip, limit))
         return result.scalars().all()
     except Exception as e:
         await db.rollback()

@@ -47,20 +47,35 @@ async def generate_sku(db: AsyncSession, tenant_id: UUID, name: str) -> str:
 async def create_product(db:AsyncSession, product_data:ProductsCreate, tenant_id:UUID)->Product:
     try:
         # Auto-generate SKU if missing
-        if not product_data.sku:
-            product_data.sku = await generate_sku(db, tenant_id, product_data.name)
+        sku_value = product_data.sku
+        if not sku_value:
+            try:
+                sku_value = await generate_sku(db, tenant_id, product_data.name)
+            except Exception as sku_error:
+                print(f"Error generating SKU: {sku_error}")
+                sku_value = f"PROD-{product_data.name[:3].upper()}-{tenant_id.hex[:6]}"
 
-        new_product = Product(**product_data.model_dump())
-        new_product.tenant_id = tenant_id
-        await db.add(new_product)
+        # Create product dict with proper types
+        product_dict = product_data.model_dump()
+        product_dict['sku'] = sku_value
+        product_dict['tenant_id'] = tenant_id
+        
+        new_product = Product(**product_dict)
+        db.add(new_product)
+        await db.flush()
         await db.commit()
-        await db.refresh(new_product)
+        
+        # Refresh only the columns, not relationships
+        await db.refresh(new_product, attribute_names=['id', 'sku', 'name', 'unit', 'base_price', 'cost_price', 'stock_quantity', 'is_raw_material', 'expiration_date', 'supplier_id', 'tenant_id'])
+        
         return new_product
-    except SQLAlchemyError:
+    except SQLAlchemyError as db_err:
         await db.rollback()
-        raise
+        print(f"Database error: {db_err}")
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {str(db_err)}")
     except Exception as e:
         await db.rollback()
+        print(f"Create product error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_products(db:AsyncSession, tenant_id: UUID, skip: int=0, limit: int = 10) ->List[Product]:
@@ -113,16 +128,17 @@ async def update_product(db:AsyncSession, product_data:ProductsUpdate, product_i
         for field, value in update_data.items():
             setattr(product_to_update, field, value)
 
-        await db.add(product_to_update)
         await db.commit()
         await db.refresh(product_to_update)
         return product_to_update
-    except SQLAlchemyError:
-        await db.rollback()
+    except HTTPException:
         raise
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 async def delete_product(db:AsyncSession, product_id:UUID, tenant_id:UUID)-> None:
     try:
