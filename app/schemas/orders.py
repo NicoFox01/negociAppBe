@@ -46,6 +46,8 @@ class OrderSchema(OrderBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
+    status: PurchaseOrderStatus
+    total_amount: Optional[float] = None
     supplier: SuppliersSchema
     items: List[OrderItemSchema]
 
@@ -59,13 +61,13 @@ class OrderDirectCreate(BaseModel):
 
 class SalesChannelBase(BaseModel):
     name: str
-    commission_rate: float = Field(..., ge=0, le=1)
-    is_active: bool
+    commission_rate: float = Field(default=0.0)
+    is_active: bool = True
 
 class SalesChannelCreate(SalesChannelBase):
     pass
 
-class SalesChannelUpdate(SalesChannelBase):
+class SalesChannelUpdate(BaseModel):
     name: Optional[str] = None
     commission_rate: Optional[float] = None
     is_active: Optional[bool] = None
@@ -152,7 +154,7 @@ class ClientOrderBase(BaseModel):
 class ClientOrderCreate(ClientOrderBase):
     pass
 
-class ClientOrderUpdate(ClientOrderBase):
+class ClientOrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
     notes: Optional[str] = None
 
@@ -166,6 +168,6 @@ class ClientOrderSchema(ClientOrderBase):
     created_at: datetime
     last_modified_by: Optional[UUID]=None
     modification_count: int = Field(..., ge=0)
-    original_value_snapshot: Optional[Json] = None
+    original_value_snapshot: Optional[dict] = None
     items: List[ClientOrderItemSchema]
     model_config = ConfigDict(from_attributes=True)

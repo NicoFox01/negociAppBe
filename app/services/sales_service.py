@@ -24,10 +24,16 @@ from app.utils.pagination import paginate
 #Services de SalesChannel:
 async def create_sales_channel(db: AsyncSession, tenant_id: UUID, channel_data: SalesChannelCreate) -> SalesChannel:
     try:
-        new_sales_channel = SalesChannel(**channel_data.model_dump())
+        new_sales_channel = SalesChannel(
+            name=channel_data.name,
+            commission_rate=channel_data.commission_rate,
+            is_active=channel_data.is_active
+        )
         new_sales_channel.tenant_id = tenant_id
-        await db.add(new_sales_channel)
+        
+        db.add(new_sales_channel)
         await db.commit()
+        await db.refresh(new_sales_channel)
         return new_sales_channel
     except SQLAlchemyError:
         await db.rollback()
@@ -39,7 +45,11 @@ async def create_sales_channel(db: AsyncSession, tenant_id: UUID, channel_data: 
 async def get_sales_channels(db: AsyncSession, tenant_id: UUID, skip: int=0, limit: int = 0) -> List[SalesChannel]:
     try:
         query = select(SalesChannel).where(SalesChannel.tenant_id == tenant_id)
-        list_of_sales_channels = await db.execute(paginate(query, skip, limit))
+        if limit > 0:
+            query = query.offset(skip).limit(limit)
+        else:
+            query = query.offset(skip)
+        list_of_sales_channels = await db.execute(query)
         return list_of_sales_channels.scalars().all()
     except SQLAlchemyError:
         await db.rollback()
@@ -51,7 +61,7 @@ async def get_sales_channels(db: AsyncSession, tenant_id: UUID, skip: int=0, lim
 async def get_sales_channel_by_id(db:AsyncSession, channel_id:UUID, tenant_id:UUID, skip: int=0, limit: int = 0) -> SalesChannel:
     try:
         query = select(SalesChannel).where(SalesChannel.id == channel_id, SalesChannel.tenant_id == tenant_id)
-        sales_channel = await db.execute(paginate(query, skip, limit))
+        sales_channel = await db.execute(query)
         result = sales_channel.scalars().first()
         if not result:
             raise HTTPException(status_code=404, detail="Sales channel no encontrado")
@@ -65,22 +75,28 @@ async def get_sales_channel_by_id(db:AsyncSession, channel_id:UUID, tenant_id:UU
 
 async def update_sales_channel(db:AsyncSession, channel_id:UUID, tenant_id:UUID, channel_data: SalesChannelUpdate) -> SalesChannel:
     try:
+        print(f"DEBUG update: channel_id={channel_id}, tenant_id={tenant_id}, data={channel_data}")
         sales_channel_to_update = await db.execute(select(SalesChannel).where(SalesChannel.id == channel_id, SalesChannel.tenant_id == tenant_id))
         result = sales_channel_to_update.scalars().first()
         if not result:
             raise HTTPException(status_code=404, detail="Sales channel no encontrado")
         update_data = channel_data.model_dump(exclude_unset=True)
+        print(f"DEBUG update: update_data={update_data}")
         for field, value in update_data.items():
             setattr(result, field, value)
-        await db.add(result)
+        db.add(result)
         await db.commit()
         await db.refresh(result)
+        print(f"DEBUG update: result={result}")
         return result
     except SQLAlchemyError:
         await db.rollback()
         raise
     except Exception as e:
         await db.rollback()
+        print(f"DEBUG update ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 async def delete_sales_channel(db:AsyncSession, channel_id:UUID, tenant_id:UUID) -> None:
@@ -411,7 +427,7 @@ async def get_orders(db:AsyncSession, tenant_id:UUID, channel_id: Optional[UUID]
         query = query.order_by(ClientOrder.created_at.desc())
 
         result = await db.execute(paginate(query, skip, limit))
-        return result.scalars().all()
+        return result.scalars().unique().all()
 
     except SQLAlchemyError:
         await db.rollback()
@@ -426,12 +442,12 @@ async def get_order_by_id(db:AsyncSession, order_id:UUID, tenant_id:UUID) -> Cli
                                  .where(ClientOrder.id == order_id,
                                         ClientOrder.tenant_id == tenant_id)
                                  .options(
-                                    joinedload(ClientOrder.items.product)
-                                        .joinedload(ClientOrder.channel)
+                                     joinedload(ClientOrder.channel),
+                                     joinedload(ClientOrder.items)
         ))
         if not order:
             raise HTTPException(404, "Orden de venta no encontrada")
-        return order
+        return order.scalars().first()
     except SQLAlchemyError:
         await db.rollback()
         raise
@@ -442,73 +458,39 @@ async def get_order_by_id(db:AsyncSession, order_id:UUID, tenant_id:UUID) -> Cli
 async def update_order(db: AsyncSession, order_id: UUID, tenant_id: UUID, order_data: ClientOrderUpdate, user_id: UUID) -> ClientOrder:
     try:
         order = await get_order_by_id(db, order_id, tenant_id)
-        if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
-            raise HTTPException(
-                status_code=400,
-                detail="No se puede editar la orden en este estado"
-            )
-
+        
         update_data = order_data.model_dump(exclude_unset=True)
-        if "items" in update_data and update_data["items"]:
-            total_amount = 0
-            total_cost = 0
-            new_items = []
-            for item in update_data["items"]:
-                promotion_product = await get_active_promotion(db, order_data.channel_id, tenant_id,
-                                                               product_id=item.product_id)
-                promotion_channel = await get_active_promotion(db, order_data.channel_id, tenant_id, product_id=None)
-                promotion = promotion_product or promotion_channel
-                product = await db.get(Product, item.product_id)
-                channel_price = await db.execute(
-                    select(ProductChannelPrice).where(
-                        ProductChannelPrice.product_id == item.product_id,
-                        ProductChannelPrice.channel_id == order.channel_id,
-                        ProductChannelPrice.tenant_id == tenant_id
-                    )
-                )
-                channel_price_obj = channel_price.scalars().first()
-
-                unit_price = channel_price_obj.price if channel_price_obj else product.base_price
-                unit_cost = product.cost_price
-
-                subtotal = float(unit_price) * item.quantity
-                if promotion:
-                    if promotion.discount_type == DiscountType.PERCENTAGE:
-                        discount = subtotal * (float(promotion.discount_value) / 100)
-                    else:
-                        discount = float(promotion.discount_value)
-                    subtotal -= discount
-                total_amount += subtotal
-                total_cost += float(unit_cost) * item.quantity
-                new_items.append({
-                    "product_id": item.product_id,
-                    "quantity": item.quantity,
-                    "unit_price": unit_price,
-                    "unit_cost": unit_cost
-                })
-            if order.modification_count == 0:
-                order.original_value_snapshot = {
-                    "total_amount": float(order.total_amount),
-                    "total_cost": float(order.total_cost),
-                    "status": order.status.value
-                }
-            order.total_amount = total_amount
-            order.total_cost = total_cost
-            order.modification_count += 1
-
-            existing_items = await db.execute(
-                select(ClientOrderItem).where(ClientOrderItem.order_id == order_id)
-            )
-            for item in existing_items.scalars().all():
-                await db.delete(item)
-
-            for item_data in new_items:
-                new_item = ClientOrderItem(order_id=order_id, **item_data)
-                db.add(new_item)
-        if "status" in update_data:
-            order.status = update_data["status"]
+        
+        print(f"DEBUG update_order: order.status={order.status}, update_data={update_data}")
+        
+        # Solo actualizar status y notes
+        if "status" in update_data and update_data["status"]:
+            new_status = update_data["status"]
+            
+            print(f"DEBUG: new_status type={type(new_status)}, value={new_status}")
+            
+            # Si es string, convertir a enum
+            if isinstance(new_status, str):
+                try:
+                    new_status = OrderStatus(new_status)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Estado inválido: {new_status}")
+            
+            print(f"DEBUG: new_status converted={new_status}")
+            
+            # Validar transiciones
+            if order.status == OrderStatus.PENDING:
+                if new_status not in [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED]:
+                    raise HTTPException(status_code=400, detail="De Pendiente solo puede pasar a En Proceso o Cancelado")
+            elif order.status == OrderStatus.IN_PROGRESS:
+                if new_status not in [OrderStatus.COMPLETED, OrderStatus.REJECTED]:
+                    raise HTTPException(status_code=400, detail="De En Proceso solo puede pasar a Entregado o Rechazado")
+            
+            order.status = new_status
+            
         if "notes" in update_data:
             order.notes = update_data["notes"]
+            
         order.last_modified_by = user_id
         await db.commit()
         await db.refresh(order)

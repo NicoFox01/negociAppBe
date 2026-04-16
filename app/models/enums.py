@@ -54,8 +54,7 @@ class DiscountType(str, enum.Enum):
 
 class OrderStatus(str, enum.Enum):
     PENDING = "PENDING"
-    CONFIRMED = "CONFIRMED"
-    PREPARING = "PREPARING"
-    READY = "READY"
+    IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"

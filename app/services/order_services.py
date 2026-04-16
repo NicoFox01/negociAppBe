@@ -123,7 +123,7 @@ async def create_order_direct(
         new_order = PurchaseOrder(
             tenant_id=tenant_id,
             supplier_id=supplier_id,
-            status=PurchaseOrderStatus.DRAFT,
+            status=PurchaseOrderStatus.SENT,
             expected_delivery_date=expected_delivery_date,
             notes=notes
         )
@@ -152,9 +152,25 @@ async def create_order_direct(
             )
             db.add(order_item)
 
+        # Calculate total_amount
+        from decimal import Decimal
+        total = sum(Decimal(str(item.get("quantity", 0))) * Decimal(str(product.cost_price)) for item in items if product)
+        new_order.total_amount = total
+
         await db.commit()
         await db.refresh(new_order)
-        return new_order
+        
+        # Load relationships for response
+        from sqlalchemy.orm import joinedload
+        result = await db.execute(
+            select(PurchaseOrder)
+            .options(
+                joinedload(PurchaseOrder.supplier),
+                joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+            )
+            .where(PurchaseOrder.id == new_order.id)
+        )
+        return result.scalars().unique().first()
 
     except SQLAlchemyError:
         await db.rollback()
@@ -228,12 +244,22 @@ async def receive_order(
         if all_received:
             order.status = PurchaseOrderStatus.RECEIVED
         elif any_received:
-            order.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
+            order.status = PurchaseOrderStatus.PARTIAL
         
         # Guardar cambios
         await db.commit()
         await db.refresh(order)
-        return order
+        
+        # Load relationships for response
+        result = await db.execute(
+            select(PurchaseOrder)
+            .options(
+                joinedload(PurchaseOrder.supplier),
+                joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+            )
+            .where(PurchaseOrder.id == order.id)
+        )
+        return result.scalars().unique().first()
 
     except SQLAlchemyError:
         await db.rollback()
@@ -256,7 +282,10 @@ async def get_orders(
         query = query.where(PurchaseOrder.status == status)
     
     query = query.order_by(PurchaseOrder.created_at.desc())
-    query = query.options(joinedload(PurchaseOrder.supplier))
+    query = query.options(
+        joinedload(PurchaseOrder.supplier),
+        joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+    )
     result = await db.execute(paginate(query, skip, limit))
     return result.scalars().unique().all()
 
@@ -294,7 +323,18 @@ async def update_order(
 
     await db.commit()
     await db.refresh(order)
-    return order
+    
+    # Load relationships for response
+    from sqlalchemy.orm import joinedload
+    result = await db.execute(
+        select(PurchaseOrder)
+        .options(
+            joinedload(PurchaseOrder.supplier),
+            joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+        )
+        .where(PurchaseOrder.id == order.id)
+    )
+    return result.scalars().unique().first()
 
 async def delete_order(
     db: AsyncSession,

@@ -80,7 +80,7 @@ async def new_product(
         detail="No tienes permiso para acceder a esta ruta"
         )
 
-@router.patch("/{product_id}", response_model=ProductsUpdate)
+@router.patch("/{product_id}", response_model=ProductsSchema)
 async def modify_product(
     current_user: Annotated["Users", Depends(get_current_user)],
     product_id: UUID,
