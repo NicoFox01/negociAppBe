@@ -1,14 +1,25 @@
+from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+
 from app.core.config import settings
+
 DATABASE_URL = settings.DATABASE_URL
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"statement_cache_size": 0}
+    pool_pre_ping=True,
+    connect_args={
+        "statement_cache_size": 0,
+        # Nombres únicos por statement: evita colisiones de prepared statements
+        # cuando el pooler (modo transacción) comparte conexiones entre clientes
+        "prepared_statement_name_func": lambda: f"__negociapp_{uuid4().hex}__",
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
