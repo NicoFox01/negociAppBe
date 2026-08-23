@@ -1,19 +1,36 @@
 from typing import List, Optional, Dict
-from datetime import date
+from datetime import date, datetime, timedelta
 from uuid import UUID
+from decimal import Decimal
+from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from fastapi import HTTPException
 
-from app.models.enums import PurchaseOrderStatus, PurchaseRequestStatus, TransactionType
+from app.models.enums import (
+    PurchaseOrderStatus, PurchaseRequestStatus, TransactionType,
+    NotificationType, NotificationStatus, Roles
+)
 from app.models.orders import PurchaseOrder, PurchaseOrderItem
 from app.models.requests import PurchaseRequest, PurchaseRequestItem
 from app.models.products import Product
+from app.models.notifications import Notification
 from app.services.inventory_services import register_transaction
 from app.schemas.orders import OrderUpdate
 from app.utils.pagination import paginate
+
+ARG = ZoneInfo("America/Argentina/Buenos_Aires")
+
+PURCHASE_ORDER_STATUS_DISPLAY = {
+    "DRAFT": "En Proceso",
+    "SENT": "Enviada",
+    "RECEIVED": "Recibida",
+    "PARTIALLY_RECEIVED": "Parcialmente Recibida",
+    "CANCELLED": "Cancelada"
+}
 
 
 async def create_orders_from_requests(
@@ -92,15 +109,26 @@ async def create_orders_from_requests(
 
         # 5. Commit de toda la operación
         await db.commit()
-        for order in created_orders:
-            await db.refresh(order)
-        return created_orders
+
+        # 6. Recargar órdenes con relaciones para serialización
+        order_ids = [o.id for o in created_orders]
+        result = await db.execute(
+            select(PurchaseOrder)
+            .options(
+                joinedload(PurchaseOrder.supplier),
+                joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+            )
+            .where(PurchaseOrder.id.in_(order_ids))
+        )
+        return result.scalars().unique().all()
 
     except SQLAlchemyError:
         await db.rollback()
         raise
     except Exception as e:
         await db.rollback()
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 async def create_order_direct(
@@ -151,11 +179,6 @@ async def create_order_direct(
                 received_quantity=0
             )
             db.add(order_item)
-
-        # Calculate total_amount
-        from decimal import Decimal
-        total = sum(Decimal(str(item.get("quantity", 0))) * Decimal(str(product.cost_price)) for item in items if product)
-        new_order.total_amount = total
 
         await db.commit()
         await db.refresh(new_order)
@@ -209,7 +232,7 @@ async def receive_order(
     try:
         for received in received_items:
             product_id = received.get('product_id')
-            quantity = float(received.get('quantity', 0))
+            quantity = Decimal(str(received.get('quantity', 0)))
             
             if quantity <= 0:
                 continue
@@ -228,7 +251,8 @@ async def receive_order(
                 quantity=quantity,
                 transaction_type=TransactionType.IN,
                 tenant_id=tenant_id,
-                reference_id=order.id
+                reference_id=order.id,
+                auto_commit=False
             )
 
         # 4. Actualizar Estado de la Orden
@@ -244,7 +268,7 @@ async def receive_order(
         if all_received:
             order.status = PurchaseOrderStatus.RECEIVED
         elif any_received:
-            order.status = PurchaseOrderStatus.PARTIAL
+            order.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
         
         # Guardar cambios
         await db.commit()
@@ -351,3 +375,133 @@ async def delete_order(
      await db.delete(order)
      await db.commit()
      return True
+
+
+async def _notify_orders_due_today(db: AsyncSession, tenant_id: UUID, orders: List[PurchaseOrder]) -> int:
+    """
+    Notifica a COMPANY y EMPLOYEEs las órdenes cuya fecha de entrega es HOY.
+    Idempotente por día: usa el marcador [ORDER:{id}] en notes para no duplicar.
+    Patrón 'lazy cron': se dispara cuando alguien consulta /orders/tracking.
+    """
+    now = datetime.now(ARG)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today = now.date()
+
+    users_result = await db.execute(
+        select(Users.id).where(
+            Users.tenant_id == tenant_id,
+            Users.role.in_([Roles.COMPANY, Roles.EMPLOYEE]),
+            Users.is_active == True
+        )
+    )
+    user_ids = users_result.scalars().all()
+    if not user_ids:
+        return 0
+
+    sent_count = 0
+    for order in orders:
+        if order.expected_delivery_date != today:
+            continue
+
+        marker = f"[ORDER:{order.id}]"
+        existing = await db.execute(
+            select(func.count(Notification.id)).where(
+                Notification.tenant_id == tenant_id,
+                Notification.type == NotificationType.ORDER_DELIVERY_TODAY,
+                Notification.created_at >= today_start,
+                Notification.notes.contains(marker)
+            )
+        )
+        if (existing.scalar() or 0) > 0:
+            continue
+
+        supplier_name = order.supplier.name if order.supplier else "Proveedor"
+        products_summary = ", ".join(
+            f"{item.product.name} x{item.quantity}" if item.product else f"Producto {item.product_id} x{item.quantity}"
+            for item in order.items
+        )
+        notes = (
+            f"[ORDER:{order.id}] Entrega prevista HOY de orden de compra "
+            f"a {supplier_name}: {products_summary}"
+        )
+
+        for user_id in user_ids:
+            db.add(Notification(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                type=NotificationType.ORDER_DELIVERY_TODAY,
+                status=NotificationStatus.PENDING,
+                notes=notes,
+                created_at=datetime.now(ARG)
+            ))
+        sent_count += 1
+
+    if sent_count:
+        await db.commit()
+    return sent_count
+
+
+async def get_tracking_orders(db: AsyncSession, tenant_id: UUID) -> List[dict]:
+    """
+    Órdenes de compra en seguimiento (DRAFT/SENT/PARTIALLY_RECEIVED con fecha de entrega).
+    Ordenadas por expected_delivery_date ascendente (más próximas primero).
+    Dispara notificaciones del día para las que entregan hoy.
+    """
+    result = await db.execute(
+        select(PurchaseOrder)
+        .options(
+            joinedload(PurchaseOrder.supplier),
+            joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product)
+        )
+        .where(
+            PurchaseOrder.tenant_id == tenant_id,
+            PurchaseOrder.status.in_([
+                PurchaseOrderStatus.DRAFT,
+                PurchaseOrderStatus.SENT,
+                PurchaseOrderStatus.PARTIALLY_RECEIVED
+            ]),
+            PurchaseOrder.expected_delivery_date.isnot(None)
+        )
+        .order_by(PurchaseOrder.expected_delivery_date.asc())
+    )
+    orders = result.scalars().unique().all()
+
+    try:
+        await _notify_orders_due_today(db, tenant_id, orders)
+    except SQLAlchemyError:
+        # La notificación no debe romper la consulta de tracking
+        await db.rollback()
+
+    today = datetime.now(ARG).date()
+
+    tracking = []
+    for order in orders:
+        days_until = (order.expected_delivery_date - today).days
+        total_items = len(order.items)
+        received_items = sum(1 for i in order.items if i.received_quantity >= i.quantity and i.quantity > 0)
+
+        tracking.append({
+            "id": order.id,
+            "supplier_name": order.supplier.name if order.supplier else "Proveedor",
+            "status": order.status.value,
+            "status_display": PURCHASE_ORDER_STATUS_DISPLAY.get(order.status.value, order.status.value),
+            "expected_delivery_date": order.expected_delivery_date,
+            "days_until_delivery": days_until,
+            "is_due_today": days_until == 0,
+            "overdue_days": max(-days_until, 0),
+            "total_items": total_items,
+            "received_items": received_items,
+            "fully_received": total_items > 0 and received_items == total_items,
+            "items": [
+                {
+                    "product_id": item.product_id,
+                    "product_name": item.product.name if item.product else None,
+                    "quantity": float(item.quantity),
+                    "received_quantity": float(item.received_quantity),
+                    "unit_price": float(item.unit_price)
+                }
+                for item in order.items
+            ],
+            "created_at": order.created_at
+        })
+    return tracking

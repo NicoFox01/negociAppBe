@@ -8,7 +8,7 @@ from app.schemas.products import ProductWithSuppliersSchema
 
 class RequestItemBase(BaseModel):
     product_id: UUID
-    quantity: int
+    quantity: float
     
 class RequestItemCreate(RequestItemBase):
     pass
@@ -32,6 +32,8 @@ class RequestSchema(RequestBase):
     id: UUID
     tenant_id: UUID
     user_id: UUID
+    user_name: Optional[str] = None
+    user_full_name: Optional[str] = None
     created_at: datetime
     items: List[RequestItemSchema]
     model_config = ConfigDict(from_attributes=True)

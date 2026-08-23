@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from typing import Optional
 
 from app.schemas.suppliers import SuppliersSchema
+from app.models.enums import ProductType
 
 class ProductsBase(BaseModel):
     name: str
@@ -17,6 +18,9 @@ class ProductsCreate(ProductsBase):
     is_raw_material: bool = False
     expiration_date: Optional[date] = None
     supplier_id: UUID
+    product_type: ProductType = ProductType.RAW_MATERIAL
+    min_stock_alert: Optional[float] = Field(None, ge=0)
+    enable_alert: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +34,9 @@ class ProductsUpdate(ProductsBase):
     is_raw_material: Optional[bool] = None
     expiration_date: Optional[date] = None
     supplier_id: Optional[UUID] = None
+    product_type: Optional[ProductType] = None
+    min_stock_alert: Optional[float] = Field(None, ge=0)
+    enable_alert: Optional[bool] = None
 
 class ProductsSchema(ProductsBase):
     id: UUID
@@ -42,6 +49,9 @@ class ProductsSchema(ProductsBase):
     stock_quantity: float
     expiration_date: Optional[date]
     supplier_id: UUID
+    product_type: ProductType
+    min_stock_alert: Optional[float]
+    enable_alert: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
     

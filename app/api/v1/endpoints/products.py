@@ -32,6 +32,22 @@ async def return_all_products(
         detail="No tienes permiso para acceder a esta ruta"
         )
 
+@router.get("/supplier/{supplier_id}", response_model=List[ProductsSchema])
+async def return_products_by_suppliers(
+    current_user: Annotated["Users", Depends(get_current_user)],
+    supplier_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 10
+):
+    if current_user.role == Roles.COMPANY:
+        tenant_id = current_user.tenant_id
+        return await product_services.get_products_by_supplier(db, tenant_id, supplier_id, skip, limit)
+    raise HTTPException(
+        status_code=403,
+        detail="No tienes permiso para acceder a esta ruta"
+        )
+
 @router.get("/{product_id}", response_model=ProductsSchema)
 async def return_product_by_id(
     current_user: Annotated["Users", Depends(get_current_user)],
@@ -45,22 +61,6 @@ async def return_product_by_id(
     if current_user.role in Allowed_roles:
         tenant_id = current_user.tenant_id
         return await product_services.get_product_by_id(db, product_id, tenant_id)
-    raise HTTPException(
-        status_code=403,
-        detail="No tienes permiso para acceder a esta ruta"
-        )
-
-@router.get("/supplier/{supplier_id}", response_model=List[ProductsSchema])
-async def return_products_by_suppliers(
-    current_user: Annotated["Users", Depends(get_current_user)],
-    supplier_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    skip: int = 0,
-    limit: int = 10
-):
-    if current_user.role == Roles.COMPANY:
-        tenant_id = current_user.tenant_id
-        return await product_services.get_products_by_supplier(db, tenant_id, supplier_id, skip, limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -103,20 +103,6 @@ async def remove_product(
     if current_user.role == Roles.COMPANY:
         tenant_id = current_user.tenant_id
         return await product_services.delete_product(db, product_id, tenant_id)
-    raise HTTPException(
-        status_code=403,
-        detail="No tienes permiso para acceder a esta ruta"
-        )
-
-@router.delete("/{supplier_id}", response_model=None)
-async def remove_all_product_for_supplier(
-    current_user: Annotated["Users", Depends(get_current_user)],
-    supplier_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
-    if current_user.role == Roles.COMPANY:
-        tenant_id = current_user.tenant_id
-        return await product_services.delete_all_products_by_supplier(db, tenant_id, supplier_id)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

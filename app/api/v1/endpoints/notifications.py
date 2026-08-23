@@ -128,4 +128,103 @@ async def resolve_notification_request(
             status_code=403,
             detail="No cuentas con los permisos requeridos para la petición"
         )
+
+@router.get("/production-requests", response_model=List[NotificationSchema])
+async def get_production_requests(
+    current_user: Annotated["Users", Depends(get_current_user)],
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]:
+        raise HTTPException(
+            status_code=403,
+            detail="No cuentas con los permisos requeridos"
+        )
+    
+    query = select(Notification).where(
+        Notification.tenant_id == current_user.tenant_id,
+        Notification.type.in_([
+            NotificationType.PRODUCTION_REQUEST,
+            NotificationType.PRODUCTION_COMPLETED,
+            NotificationType.PRODUCTION_CANCELLED
+        ])
+    ).order_by(Notification.created_at.desc()).offset(skip).limit(limit)
+    
+    result = await db.execute(query)
+    notifications = result.scalars().all()
+    
+    if current_user.role == Roles.EMPLOYEE:
+        notifications = [n for n in notifications if n.user_id == current_user.id or n.type in [NotificationType.PRODUCTION_COMPLETED, NotificationType.PRODUCTION_CANCELLED]]
+    
+    return notifications
+
+@router.patch("/production-requests/{notification_id}/respond")
+async def respond_production_request(
+    notification_id: UUID,
+    status_action: str,
+    current_user: Annotated["Users", Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+    cancel_reason: Optional[str] = None
+):
+    if current_user.role != Roles.EMPLOYEE:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo empleados pueden responder solicitudes de producción"
+        )
+    
+    if status_action not in ["COMPLETED", "CANCELLED"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Status debe ser COMPLETED o CANCELLED"
+        )
+    
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.tenant_id == current_user.tenant_id,
+            Notification.type == NotificationType.PRODUCTION_REQUEST
+        )
+    )
+    notification = result.scalars().first()
+    
+    if not notification:
+        raise HTTPException(
+            status_code=404,
+            detail="Solicitud no encontrada"
+        )
+    
+    if notification.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Esta solicitud no te pertenece"
+        )
+    
+    notification.status = NotificationStatus.RESOLVED
+    
+    result_company = await db.execute(
+        select(Notification).where(
+            Notification.tenant_id == current_user.tenant_id
+        ).where(
+            Notification.user.has(role=Roles.COMPANY)
+        )
+    )
+    company_notifications = result_company.scalars().all()
+    company_user_id = company_notifications[0].user_id if company_notifications else None
+    
+    new_type = NotificationType.PRODUCTION_COMPLETED if status_action == "COMPLETED" else NotificationType.PRODUCTION_CANCELLED
+    
+    response_notification = Notification(
+        tenant_id=current_user.tenant_id,
+        user_id=company_user_id,
+        type=new_type,
+        status=NotificationStatus.PENDING,
+        notes=f"Solicitud {status_action} por {current_user.name or current_user.username}" + (f": {cancel_reason}" if cancel_reason and status_action == "CANCELLED" else "")
+    )
+    db.add(response_notification)
+    
+    await db.commit()
+    await db.refresh(response_notification)
+    
+    return {"message": f"Solicitud marcada como {status_action}", "notification_id": str(response_notification.id)}
     
