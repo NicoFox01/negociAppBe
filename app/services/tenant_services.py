@@ -41,6 +41,49 @@ async def get_tenant(db: AsyncSession, tenant_id: UUID):
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+URGENT_DAYS_THRESHOLD = 7
+
+async def get_subscription_status(db: AsyncSession, tenant_id: UUID) -> dict:
+    """
+    Estado de la suscripción para el banner del dashboard.
+    - ACTIVE: más de URGENT_DAYS_THRESHOLD días restantes (o sin fecha)
+    - EXPIRING_SOON: vence en <= 7 días
+    - EXPIRED: fecha pasada; can_use_grace indica si aún puede activar período de gracia
+    """
+    tenant = await get_tenant(db, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    today = date.today()
+    subscription_end = tenant.subscription_end
+
+    if subscription_end is None:
+        days_remaining = None
+        status = "ACTIVE"
+        urgent = False
+    else:
+        days_remaining = (subscription_end - today).days
+        if days_remaining < 0:
+            status = "EXPIRED"
+            urgent = True
+        elif days_remaining <= URGENT_DAYS_THRESHOLD:
+            status = "EXPIRING_SOON"
+            urgent = True
+        else:
+            status = "ACTIVE"
+            urgent = False
+
+    return {
+        "plan_type": tenant.plan_type.value if tenant.plan_type else None,
+        "is_active": bool(tenant.is_active),
+        "subscription_end": subscription_end,
+        "days_remaining": days_remaining,
+        "status": status,
+        "urgent": urgent,
+        "grace_period_used": bool(tenant.grace_period_used),
+        "can_use_grace": status == "EXPIRED" and not tenant.grace_period_used
+    }
+
 async def create_tenant_with_admin(db: AsyncSession, tenant_data: TenantCreate, admin_user_data: UserCreate) -> Tenants:
     # Inicio de Transacción Atómica implícita en AsyncSession
     try:

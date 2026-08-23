@@ -1,10 +1,11 @@
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, UniqueConstraint, Enum as SQLEnum
 from sqlalchemy import Column, String, Boolean, Integer, Numeric, Date
 from sqlalchemy.orm import relationship
 from uuid import UUID, uuid4
 
 from app.models.base import Base
+from app.models.enums import ProductType
 
 class Product(Base):
     __tablename__ = "products"
@@ -19,6 +20,9 @@ class Product(Base):
     is_raw_material = Column(Boolean, default=False)
     expiration_date = Column(Date, nullable=True)
     supplier_id = Column(PG_UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False)
+    product_type = Column(SQLEnum(ProductType), nullable=False, default=ProductType.RAW_MATERIAL)
+    min_stock_alert = Column(Numeric(10,2), nullable=True)
+    enable_alert = Column(Boolean, default=False)
     
     __table_args__ = (UniqueConstraint("sku", "tenant_id", name="uq_product_sku_tenant"), )
     # Relationships
@@ -28,3 +32,4 @@ class Product(Base):
     order_items = relationship("ClientOrderItem", back_populates="product")
     transform_inputs = relationship("ProductionTransformInput", back_populates="product")
     transform_outputs = relationship("ProductionTransformOutput", back_populates="product")
+    stock_alerts = relationship("StockAlert", back_populates="product", cascade="all, delete-orphan")

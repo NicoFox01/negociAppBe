@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user,get_db
 from app.models.enums import Roles, PurchaseOrderStatus
 from app.models.user import Users
-from app.schemas.orders import OrderSchema, OrderUpdate, OrderItemSchema, OrderDirectCreate
+from app.schemas.orders import (
+    OrderSchema, OrderUpdate, OrderItemSchema, OrderDirectCreate, OrderTrackingSchema
+)
 from app.services import order_services
 
 router = APIRouter()
@@ -73,6 +75,27 @@ async def read_orders(
     )
 
 
+@router.get("/tracking", response_model=List[OrderTrackingSchema])
+async def read_orders_tracking(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Seguimiento de órdenes de compra en proceso (DRAFT/SENT/PARTIALLY_RECEIVED)
+    con fecha de entrega prevista. Ordenadas por fecha de entrega.
+    Además dispara notificaciones para las órdenes que entregan hoy.
+    """
+    if current_user.role not in [Roles.COMPANY, Roles.EMPLOYEE]:
+        raise HTTPException(
+            status_code=403, detail="No tienes permisos para ver el seguimiento."
+        )
+
+    return await order_services.get_tracking_orders(
+        db=db,
+        tenant_id=current_user.tenant_id,
+    )
+
+
 @router.get("/{order_id}", response_model=OrderSchema)
 async def read_order(
     order_id: UUID,
@@ -95,7 +118,7 @@ async def read_order(
 @router.patch("/{order_id}/receive", response_model=OrderSchema)
 async def receive_order_items(
     order_id: UUID,
-    items: List[Dict[str, float]] = Body(..., description="List of dictionaries with 'product_id' (UUID) and 'quantity' (float)"),
+    items: List[Dict[str, Any]] = Body(..., description="List of dictionaries with 'product_id' (UUID) and 'quantity' (float)"),
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

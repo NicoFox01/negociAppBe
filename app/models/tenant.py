@@ -30,4 +30,5 @@ class Tenants(Base):
     promotions = relationship("Promotion", back_populates="tenant", cascade="all, delete-orphan")
     client_orders = relationship("ClientOrder", back_populates="tenant", cascade="all, delete-orphan")
     transformations = relationship("ProductionTransform", back_populates="tenant",cascade="all, delete-orphan")
+    stock_alerts = relationship("StockAlert", back_populates="tenant", cascade="all, delete-orphan")
  

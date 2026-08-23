@@ -3,7 +3,7 @@ from sqlalchemy import Enum as SQLEnum, ForeignKey, Numeric, JSON
 from sqlalchemy import Column, String, Boolean, Date,  Integer, DateTime
 from sqlalchemy.orm import relationship
 from uuid import UUID, uuid4
-from app.models.enums import PurchaseOrderStatus, DiscountType, OrderStatus
+from app.models.enums import PurchaseOrderStatus, DiscountType, OrderStatus, PaymentMethod
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -98,6 +98,7 @@ class ClientOrder(Base):
     total_cost = Column(Numeric(10,2), nullable=False, default=0)
     total_tax = Column(Numeric(10,2), nullable=False, default=0)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
+    payment_method = Column(SQLEnum(PaymentMethod), nullable=True)
     notes = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ARG))
     last_modified_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
