@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from app.models.requests import PurchaseRequest, PurchaseRequestItem
 from app.models.products import Product
+from app.models.user import Users
 from app.models.enums import PurchaseRequestStatus, Roles
 from app.schemas.requests import RequestCreate, RequestUpdate, RequestSchema
 from app.utils.pagination import paginate
@@ -43,10 +44,15 @@ async def create_request(
         ).options(
             joinedload(PurchaseRequest.items)
             .joinedload(PurchaseRequestItem.product)
-            .joinedload(Product.supplier)
+            .joinedload(Product.supplier),
+            joinedload(PurchaseRequest.user)
         )
         result = await db.execute(query)
-        return result.scalars().unique().first()
+        req = result.scalars().unique().first()
+        if req and req.user:
+            req.user_name = req.user.username
+            req.user_full_name = req.user.full_name
+        return req
         
     except SQLAlchemyError:
         await db.rollback()
@@ -70,11 +76,17 @@ async def get_requests(
         query = query.options(
             joinedload(PurchaseRequest.items)
             .joinedload(PurchaseRequestItem.product)
-            .joinedload(Product.supplier)
+            .joinedload(Product.supplier),
+            joinedload(PurchaseRequest.user)
         ).order_by(PurchaseRequest.created_at.desc())
 
         result = await db.execute(paginate(query, skip, limit))
-        return result.scalars().unique().all()
+        requests = result.scalars().unique().all()
+        for req in requests:
+            if req.user:
+                req.user_name = req.user.username
+                req.user_full_name = req.user.full_name
+        return requests
     except SQLAlchemyError:
         raise
     except Exception as e:
@@ -92,11 +104,16 @@ async def get_request_by_id(
         ).options(
             joinedload(PurchaseRequest.items)
             .joinedload(PurchaseRequestItem.product)
-            .joinedload(Product.supplier)
+            .joinedload(Product.supplier),
+            joinedload(PurchaseRequest.user)
         )
         
         result = await db.execute(query)
-        return result.scalars().unique().first()
+        req = result.scalars().unique().first()
+        if req and req.user:
+            req.user_name = req.user.username
+            req.user_full_name = req.user.full_name
+        return req
     except SQLAlchemyError:
         raise
     except Exception as e:

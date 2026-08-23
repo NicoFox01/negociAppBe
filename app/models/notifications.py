@@ -1,5 +1,5 @@
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import Column, String, Date, ForeignKey, Float, DateTime
+from sqlalchemy import Column, String, Date, ForeignKey, Float, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
@@ -14,10 +14,11 @@ ARG = ZoneInfo("America/Argentina/Buenos_Aires")
 class Notification(Base):
     __tablename__ = "notifications"
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False) 
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True) 
     tenant_id = Column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     type = Column(SQLEnum(NotificationType), default=NotificationType.RESET_PASSWORD_REQUEST, nullable=False)
     status = Column(SQLEnum(NotificationStatus), default = NotificationStatus.PENDING, nullable=False)
+    notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(ARG))
     # Relationship
     tenant = relationship("Tenants", back_populates="notifications")

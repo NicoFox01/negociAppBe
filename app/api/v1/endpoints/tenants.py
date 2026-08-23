@@ -34,6 +34,33 @@ async def return_all_tenants(
         detail="No tienes permiso para acceder a esta ruta"
     )
 
+# Obtener detalles de mi tenant - para COMPANY
+# NOTA: debe registrarse ANTES que GET /{tenant_id} para que FastAPI no lo capture como UUID inválido
+@router.get("/mi-empresa", response_model=TenantSchema)
+async def return_my_tenant(
+    current_user: Annotated["Users",Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.role == Roles.COMPANY:
+        return await tenant_services.get_tenant(db, current_user.tenant_id)
+    raise HTTPException(
+        status_code=403,
+        detail="No tienes permiso para acceder a esta ruta"
+    )
+
+# Estado de suscripción del tenant actual - para banner del dashboard
+@router.get("/subscription-status")
+async def return_subscription_status(
+    current_user: Annotated["Users",Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db)
+):
+    if current_user.role != Roles.COMPANY:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para acceder a esta ruta"
+        )
+    return await tenant_services.get_subscription_status(db, current_user.tenant_id)
+
 #Obtener tenant por ID
 @router.get("/{tenant_id}", response_model=TenantSchema)
 async def get_tenant_details_by_id(
@@ -43,18 +70,6 @@ async def get_tenant_details_by_id(
 ):
     if current_user.role == Roles.ADMIN:
         return await tenant_services.get_tenant(db, tenant_id)
-    raise HTTPException(
-        status_code=403,
-        detail="No tienes permiso para acceder a esta ruta"
-    )
-# Obtener detalles de mi tenant - para COMPANY
-@router.get("/mi-empresa", response_model=TenantSchema)
-async def return_my_tenant(
-    current_user: Annotated["Users",Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db)
-):
-    if current_user.role == Roles.COMPANY:
-        return await tenant_services.get_tenant(db, current_user.tenant_id)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"

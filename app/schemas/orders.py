@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import Json
 
 from app.schemas.products import ProductsSchema
-from app.models.enums import PurchaseOrderStatus, DiscountType, OrderStatus
+from app.models.enums import PurchaseOrderStatus, DiscountType, OrderStatus, PaymentMethod
 from app.schemas.suppliers import SuppliersSchema
 
 
@@ -58,6 +58,28 @@ class OrderDirectCreate(BaseModel):
     expected_delivery_date: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=600)
     items: List[OrderItemCreate]
+
+class TrackingItemSchema(BaseModel):
+    product_id: UUID
+    product_name: Optional[str] = None
+    quantity: float
+    received_quantity: float
+    unit_price: float
+
+class OrderTrackingSchema(BaseModel):
+    id: UUID
+    supplier_name: str
+    status: PurchaseOrderStatus
+    status_display: str
+    expected_delivery_date: Optional[date] = None
+    days_until_delivery: Optional[int] = None
+    is_due_today: bool = False
+    overdue_days: int = 0
+    total_items: int
+    received_items: int
+    fully_received: bool
+    items: List[TrackingItemSchema]
+    created_at: datetime
 
 class SalesChannelBase(BaseModel):
     name: str
@@ -148,11 +170,12 @@ class ClientOrderBase(BaseModel):
     channel_id: UUID
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    payment_method: Optional[PaymentMethod] = None
     items: List[ClientOrderItemBase]
     notes: Optional[str] = None
 
 class ClientOrderCreate(ClientOrderBase):
-    pass
+    status: Optional[OrderStatus] = None
 
 class ClientOrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
@@ -161,10 +184,12 @@ class ClientOrderUpdate(BaseModel):
 class ClientOrderSchema(ClientOrderBase):
     id: UUID
     tenant_id: UUID
+    channel_id: Optional[UUID] = None
     total_amount: float
     total_cost: float
     total_tax: float
     status: OrderStatus
+    payment_method: Optional[PaymentMethod] = None
     created_at: datetime
     last_modified_by: Optional[UUID]=None
     modification_count: int = Field(..., ge=0)

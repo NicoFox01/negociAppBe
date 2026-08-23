@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from app.models.enums import Roles, OrderStatus
 from uuid import UUID
+from datetime import date
+from typing import Annotated, TYPE_CHECKING, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.schemas.orders import (SalesChannelSchema, SalesChannelCreate, SalesChannelUpdate,
@@ -8,6 +10,8 @@ from app.schemas.orders import (SalesChannelSchema, SalesChannelCreate, SalesCha
                                 PromotionSchema, PromotionCreate, PromotionUpdate,
                                 ClientOrderSchema, ClientOrderCreate, ClientOrderUpdate)
 from app.services.sales_service import *
+from app.services.alerts_service import check_and_notify_low_stock
+from pydantic import BaseModel
 
 from typing import Annotated, TYPE_CHECKING, List
 
@@ -15,6 +19,12 @@ if TYPE_CHECKING:
     from app.models.user import Users
 from app.models.enums import Roles
 router = APIRouter()
+
+class PaginatedOrdersResponse(BaseModel):
+    items: List[ClientOrderSchema]
+    total: int
+    skip: int
+    limit: int
 
 #endpoints Sales Channel (Solo COMPANY)
 @router.post("/channels", response_model=SalesChannelSchema)
@@ -98,7 +108,7 @@ async def new_product_sales_channel_price(
         current_user: Annotated["Users", Depends(get_current_user)],
         product_id: UUID,
         channel_id: UUID,
-        price: float,
+        price: float = Body(..., embed=True),
         db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.COMPANY:
@@ -143,8 +153,8 @@ async def return_product_sales_channel_price(
 @router.delete("/channels/{channel_id}/prices/{product_id}", response_model=None)
 async def remove_product_sales_channel_price(
         current_user: Annotated["Users", Depends(get_current_user)],
-        channel_id: UUID,
         product_id: UUID,
+        channel_id: UUID,
         db: AsyncSession = Depends(get_db)
 ):
     if current_user.role == Roles.COMPANY:
@@ -271,24 +281,46 @@ async def new_client_order(
     if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
         final_user_id = user_id if user_id else current_user.id
-        return await create_order(db, tenant_id, order_data, final_user_id)
+        order = await create_order(db, tenant_id, order_data, final_user_id)
+        for item in order_data.items:
+            await check_and_notify_low_stock(db, tenant_id, item.product_id)
+        return order
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
     )
 
-@router.get("/clientOrder", response_model=List[ClientOrderSchema])
+@router.get("/clientOrder", response_model=PaginatedOrdersResponse)
 async def return_client_orders(
         current_user: Annotated["Users", Depends(get_current_user)],
         channel_id: Optional[UUID] = None,
         status: Optional[OrderStatus] = None,
         db: AsyncSession = Depends(get_db),
         skip: int = 0,
+        limit: int = 100,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+):
+    if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
+        tenant_id = current_user.tenant_id
+        items, total = await get_orders(db, tenant_id, channel_id, status, skip, limit, start_date=start_date, end_date=end_date)
+        return PaginatedOrdersResponse(items=items, total=total, skip=skip, limit=limit)
+    raise HTTPException(
+        status_code=403,
+        detail="No tienes permiso para acceder a esta ruta"
+    )
+
+@router.get("/clientOrder/cancelled", response_model=PaginatedOrdersResponse)
+async def return_cancelled_orders(
+        current_user: Annotated["Users", Depends(get_current_user)],
+        db: AsyncSession = Depends(get_db),
+        skip: int = 0,
         limit: int = 100
 ):
     if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await get_orders(db, tenant_id, channel_id, status, skip, limit)
+        items, total = await get_cancelled_orders(db, tenant_id, skip, limit)
+        return PaginatedOrdersResponse(items=items, total=total, skip=skip, limit=limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -308,18 +340,21 @@ async def return_client_order_by_id(
         detail="No tienes permiso para acceder a esta ruta"
     )
 
-@router.get("/clientOrder?channel_id=X&status=Y", response_model=List[ClientOrderSchema])
+@router.get("/clientOrder/filter", response_model=PaginatedOrdersResponse)
 async def return_client_order_by_channel_status(
         current_user: Annotated["Users", Depends(get_current_user)],
         channel_id: UUID,
-        status: Optional[OrderStatus],
+        status: Optional[OrderStatus] = None,
         db: AsyncSession = Depends(get_db),
         skip: int = 0,
-        limit: int = 10
+        limit: int = 10,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
 ):
     if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await get_orders(db, tenant_id, channel_id, status, skip, limit)
+        items, total = await get_orders(db, tenant_id, channel_id, status, skip, limit, start_date=start_date, end_date=end_date)
+        return PaginatedOrdersResponse(items=items, total=total, skip=skip, limit=limit)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
@@ -350,7 +385,8 @@ async def cancel_client_order(
 ):
     if current_user.role in [Roles.COMPANY, Roles.EMPLOYEE]:
         tenant_id = current_user.tenant_id
-        return await cancel_order(db, order_id, tenant_id)
+        user_id = current_user.id
+        return await cancel_order(db, order_id, tenant_id, user_id)
     raise HTTPException(
         status_code=403,
         detail="No tienes permiso para acceder a esta ruta"
