@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import logging
 from app.core.database import AsyncSessionLocal
 from app.models.user import Users
@@ -13,7 +14,7 @@ from sqlalchemy import select
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def create_superuser():
+async def create_superuser(username: str, password: str, full_name: str):
     async with AsyncSessionLocal() as db:
         try:
             # 1. Verificar/Crear Tenant "Plataforma" (Requerido por FK en Users)
@@ -38,8 +39,8 @@ async def create_superuser():
                 logger.info(f"ℹ️ Tenant de Sistema ya existe: {system_tenant.id}")
 
             # 2. Verificar/Crear Usuario Admin
-            target_username = "NicoFoxGon"
-            
+            target_username = username
+
             result_user = await db.execute(select(Users).where(Users.username == target_username))
             existing_user = result_user.scalars().first()
 
@@ -49,8 +50,8 @@ async def create_superuser():
 
             new_superuser = Users(
                 username=target_username,
-                hashed_password=get_password_hash("admin123"), # Hash seguro
-                full_name="Nicolas Gonzalez",
+                hashed_password=get_password_hash(password),  # Hash seguro (nunca se loguea)
+                full_name=full_name,
                 role=Roles.ADMIN,
                 tenant_id=system_tenant.id, # Vinculado al Tenant de Sistema
                 is_active=True
@@ -59,7 +60,6 @@ async def create_superuser():
             db.add(new_superuser)
             await db.commit()
             logger.info(f"✅ Usuario Admin creado exitosamente: {target_username}")
-            logger.info(f"🔑 Password: admin123")
             logger.info(f"👑 Rol: {Roles.ADMIN}")
 
         except Exception as e:
@@ -71,5 +71,15 @@ async def create_superuser():
             await db.close()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Crea un usuario con rol ADMIN")
+    parser.add_argument("--username", required=True, help="Nombre de usuario")
+    parser.add_argument("--password", required=True, help="Contraseña en texto plano")
+    parser.add_argument("--full-name", dest="full_name", help="Nombre completo (opcional)")
+    args = parser.parse_args()
+
+    full_name = args.full_name or args.username.replace("_", " ").title()
+
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(create_superuser())
+    loop.run_until_complete(
+        create_superuser(args.username, args.password, full_name)
+    )
